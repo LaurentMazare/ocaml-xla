@@ -56,7 +56,7 @@ module Literal = struct
     Caml.Gc.finalise W.Literal.release ptr;
     ptr
 
-  let create element_type dims =
+  let create ~element_type ~dims =
     let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
     let t =
       W.Literal.create_from_shape
@@ -172,7 +172,46 @@ module Op = struct
     Builder.current_status builder |> Or_error.ok_exn;
     { ptr; builder }
 
+  let dimensions_size t ~dim_index =
+    W.Op.dimensions_size t.ptr (Int64.of_int_exn dim_index) |> of_ptr ~builder:t.builder
+
+  let element_type t =
+    let ptr = Ctypes.(allocate_n int ~count:1) in
+    let status = W.Op.get_element_type t.builder t.ptr ptr in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> Element_type.of_c_int
+
+  let rank t =
+    let ptr = Ctypes.(allocate_n int ~count:1) in
+    let status = W.Op.get_dimensions_size t.builder t.ptr ptr in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr
+
+  let dims t =
+    let rank = rank t in
+    let ptr = Ctypes.(allocate_n size_t ~count:rank) in
+    let status = W.Op.get_dimensions t.builder t.ptr ptr in
+    Status.ok_exn status;
+    List.init rank ~f:(fun i ->
+      Ctypes.( +@ ) ptr i |> Ctypes.( !@ ) |> Unsigned.Size_t.to_int)
+
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
+
+  let parameter name ~id ~element_type ~dims ~builder =
+    let dims = List.map dims ~f:Signed.Long.of_int |> CArray.of_list Ctypes.long in
+    let t =
+      W.Op.parameter
+        builder
+        (Int64.of_int_exn id)
+        (Element_type.to_c_int element_type)
+        (CArray.length dims)
+        (CArray.start dims)
+        name
+      |> of_ptr ~builder
+    in
+    keep_alive dims;
+    t
+
   let not_ t = W.Op.not_ t.ptr |> of_ptr ~builder:t.builder
   let abs t = W.Op.abs t.ptr |> of_ptr ~builder:t.builder
   let exp t = W.Op.exp t.ptr |> of_ptr ~builder:t.builder
