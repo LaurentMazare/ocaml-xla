@@ -35,6 +35,8 @@ module C (F : Cstubs.FOREIGN) = struct
     let struct_ : struct_ typ = structure "_xla_builder"
     let t : t typ = ptr struct_
     let create = foreign "xla_builder_create" (string @-> returning t)
+    let first_error = foreign "first_error" (t @-> returning Status.t)
+    let get_current_status = foreign "get_current_status" (t @-> returning Status.t)
     let release = foreign "xla_builder_free" (t @-> returning void)
   end
 
@@ -45,6 +47,25 @@ module C (F : Cstubs.FOREIGN) = struct
 
     let struct_ : struct_ typ = structure "_literal"
     let t : t typ = ptr struct_
+
+    let create_from_shape =
+      foreign "literal_create_from_shape" (int @-> ptr int64_t @-> size_t @-> returning t)
+
+    let create_from_shape_and_data =
+      foreign
+        "literal_create_from_shape_and_data"
+        (int @-> ptr int64_t @-> size_t @-> ptr void @-> size_t @-> returning t)
+
+    let clone = foreign "literal_clone" (t @-> returning t)
+
+    let reshape =
+      foreign
+        "literal_reshape"
+        (t @-> ptr int64_t @-> size_t @-> ptr t @-> returning Status.t)
+
+    let copy = foreign "literal_copy" (t @-> ptr void @-> size_t @-> returning void)
+    let convert = foreign "literal_convert" (t @-> int @-> ptr t @-> returning Status.t)
+    let shape = foreign "literal_shape" (t @-> ptr Shape.t @-> returning void)
     let element_type = foreign "literal_element_type" (t @-> returning int)
     let element_count = foreign "literal_element_count" (t @-> returning int64_t)
     let size_bytes = foreign "literal_size_bytes" (t @-> returning int64_t)
@@ -123,9 +144,38 @@ module C (F : Cstubs.FOREIGN) = struct
     (* Ternary functions. *)
     let clamp = foreign "op_clamp" (t @-> t @-> t @-> returning t)
     let select = foreign "op_select" (t @-> t @-> t @-> returning t)
+    let einsum1 = foreign "op_einsum1" (t @-> string @-> returning t)
+    let einsum2 = foreign "op_einsum2" (t @-> t @-> string @-> returning t)
 
+    let convert_element_types =
+      foreign "op_convert_element_type" (t @-> int @-> returning t)
+
+    let reshape = foreign "op_reshape" (t @-> size_t @-> ptr int64_t @-> returning t)
+    let broadcast = foreign "op_broadcast" (t @-> size_t @-> ptr int64_t @-> returning t)
+    let collapse = foreign "op_collapse" (t @-> size_t @-> ptr int64_t @-> returning t)
+    let transpose = foreign "op_transpose" (t @-> size_t @-> ptr int64_t @-> returning t)
+    let dimensions_size = foreign "op_dimensions_size" (t @-> int64_t @-> returning t)
+    let internal_error = foreign "op_internal_error" (Builder.t @-> string @-> returning t)
+    let unknown_error = foreign "op_unknown_error" (Builder.t @-> string @-> returning t)
+
+    let invalid_argument_error =
+      foreign "op_invalid_argument_error" (Builder.t @-> string @-> returning t)
+
+    let builder = foreign "op_builder" (t @-> returning Builder.t)
     let valid = foreign "xla_op_valid" (t @-> returning int)
     let release = foreign "xla_op_free" (t @-> returning void)
+
+    let get_shape =
+      foreign "get_shape" (Builder.t @-> t @-> ptr Shape.t @-> returning Status.t)
+
+    let get_element_type =
+      foreign "get_element_type" (Builder.t @-> t @-> ptr int @-> returning Status.t)
+
+    let get_dimensions_size =
+      foreign "get_dimensions_size" (Builder.t @-> t @-> ptr int @-> returning Status.t)
+
+    let get_dimensions =
+      foreign "get_dimensions" (Builder.t @-> t @-> ptr size_t @-> returning Status.t)
   end
 
   module Computation = struct
@@ -136,6 +186,7 @@ module C (F : Cstubs.FOREIGN) = struct
     let struct_ : struct_ typ = structure "_xla_computation"
     let t : t typ = ptr struct_
     let name = foreign "xla_computation_name" (t @-> returning string)
+    let build = foreign "build" (Builder.t @-> Op.t @-> ptr t @-> returning Status.t)
     let release = foreign "xla_computation_free" (t @-> returning void)
   end
 
@@ -189,6 +240,39 @@ module C (F : Cstubs.FOREIGN) = struct
 
     let struct_ : struct_ typ = structure "_pjrt_buffer"
     let t : t typ = ptr struct_
+
+    let from_host_literal =
+      foreign
+        "pjrt_buffer_from_host_literal"
+        (PjRtClient.t @-> PjRtDevice.t @-> Literal.t @-> ptr t @-> returning Status.t)
+
+    let from_host_buffer =
+      foreign
+        "pjrt_buffer_from_host_buffer"
+        (PjRtClient.t
+         @-> PjRtDevice.t
+         @-> ptr void
+         @-> int
+         @-> int
+         @-> ptr int64_t
+         @-> ptr t
+         @-> returning Status.t)
+
+    let to_literal_sync =
+      foreign "pjrt_buffer_to_literal_sync" (t @-> ptr Literal.t @-> returning Status.t)
+
+    let copy_raw_to_host_sync =
+      foreign
+        "pjrt_buffer_copy_raw_to_host_sync"
+        (t @-> ptr void @-> size_t @-> size_t @-> returning Status.t)
+
+    let on_device_shape = foreign "pjrt_buffer_on_device_shape" (t @-> returning Shape.t)
+
+    let copy_to_device =
+      foreign
+        "pjrt_buffer_copy_to_device"
+        (t @-> PjRtDevice.t @-> ptr t @-> returning Status.t)
+
     let release = foreign "pjrt_buffer_free" (t @-> returning void)
   end
 
@@ -199,6 +283,28 @@ module C (F : Cstubs.FOREIGN) = struct
 
     let struct_ : struct_ typ = structure "_pjrt_loaded_executable"
     let t : t typ = ptr struct_
+
+    let compile =
+      foreign "compile" (PjRtClient.t @-> Computation.t @-> ptr t @-> returning Status.t)
+
+    let execute =
+      foreign
+        "execute"
+        (t
+         @-> ptr PjRtBuffer.t
+         @-> int
+         @-> ptr (ptr (ptr PjRtBuffer.t))
+         @-> returning Status.t)
+
+    let execute_literal =
+      foreign
+        "execute_literal"
+        (t
+         @-> ptr Literal.t
+         @-> int
+         @-> ptr (ptr (ptr PjRtBuffer.t))
+         @-> returning Status.t)
+
     let release = foreign "pjrt_loaded_executable_free" (t @-> returning void)
   end
 end
