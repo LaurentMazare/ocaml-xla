@@ -32,7 +32,9 @@ end
 module Op : sig
   type t
 
-  val constant : Builder.t -> Literal.t -> t
+  val constant : Literal.t -> builder:Builder.t -> t
+  val r0_f32 : float -> builder:Builder.t -> t
+  val r0_f64 : float -> builder:Builder.t -> t
   val add : t -> t -> t
 end
 
@@ -80,4 +82,5 @@ module PjRtLoadedExecutable : sig
   type t
 
   val compile : PjRtClient.t -> Computation.t -> t
+  val execute : t -> Literal.t list -> PjRtBuffer.t array array
 end

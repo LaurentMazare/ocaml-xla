@@ -176,6 +176,9 @@ module C (F : Cstubs.FOREIGN) = struct
 
     let get_dimensions =
       foreign "get_dimensions" (Builder.t @-> t @-> ptr size_t @-> returning Status.t)
+
+    let r0_f32 = foreign "constant_r0_float" (Builder.t @-> float @-> returning t)
+    let r0_f64 = foreign "constant_r0_double" (Builder.t @-> double @-> returning t)
   end
 
   module Computation = struct
@@ -290,15 +293,6 @@ module C (F : Cstubs.FOREIGN) = struct
     let execute =
       foreign
         "execute"
-        (t
-         @-> ptr PjRtBuffer.t
-         @-> int
-         @-> ptr (ptr (ptr PjRtBuffer.t))
-         @-> returning Status.t)
-
-    let execute_literal =
-      foreign
-        "execute_literal"
         (t
          @-> ptr Literal.t
          @-> int

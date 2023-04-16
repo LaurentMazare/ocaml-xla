@@ -110,8 +110,10 @@ module Op = struct
     Caml.Gc.finalise W.Op.release ptr;
     { ptr; builder }
 
-  let constant builder literal = W.Op.constant_literal builder literal |> of_ptr ~builder
+  let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
   let add t1 t2 = W.Op.add t1.ptr t2.ptr |> of_ptr ~builder:t1.builder
+  let r0_f32 v ~builder = W.Op.r0_f32 builder v |> of_ptr ~builder
+  let r0_f64 v ~builder = W.Op.r0_f64 builder v |> of_ptr ~builder
 end
 
 module Computation = struct
@@ -237,4 +239,34 @@ module PjRtLoadedExecutable = struct
     let status = W.PjRtLoadedExecutable.compile client computation ptr in
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr
+
+  let execute_results_to_list ptr =
+    let ptr = Ctypes.( !@ ) ptr in
+    let rec loop_inner acc ptr =
+      let deref_ptr = Ctypes.( !@ ) ptr in
+      if Ctypes.is_null deref_ptr
+      then Array.of_list_rev acc
+      else (
+        let elem = PjRtBuffer.of_ptr deref_ptr in
+        loop_inner (elem :: acc) (Ctypes.( +@ ) ptr 1))
+    in
+    let rec loop acc ptr =
+      let deref_ptr = Ctypes.( !@ ) ptr in
+      if Ctypes.is_null deref_ptr
+      then Array.of_list_rev acc
+      else (
+        let elem = loop_inner [] deref_ptr in
+        loop (elem :: acc) (Ctypes.( +@ ) ptr 1))
+    in
+    loop [] ptr
+
+  let execute t args =
+    let args = CArray.of_list W.Literal.t args in
+    let ptr = Ctypes.(allocate_n (ptr (ptr (ptr W.PjRtBuffer.struct_))) ~count:1) in
+    let status =
+      W.PjRtLoadedExecutable.execute t (CArray.start args) (CArray.length args) ptr
+    in
+    keep_alive args;
+    Status.ok_exn status;
+    execute_results_to_list ptr
 end
