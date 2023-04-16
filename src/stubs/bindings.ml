@@ -167,6 +167,22 @@ module C (F : Cstubs.FOREIGN) = struct
     let convert_element_types =
       foreign "op_convert_element_type" (t @-> int @-> returning t)
 
+    let gather =
+      foreign
+        "op_gather"
+        (t
+         @-> t
+         @-> ptr int64_t
+         @-> size_t
+         @-> ptr int64_t
+         @-> size_t
+         @-> ptr int64_t
+         @-> size_t
+         @-> ptr int64_t
+         @-> ptr int64_t
+         @-> size_t
+         @-> returning t)
+
     let reshape = foreign "op_reshape" (t @-> size_t @-> ptr int64_t @-> returning t)
     let broadcast = foreign "op_broadcast" (t @-> size_t @-> ptr int64_t @-> returning t)
     let collapse = foreign "op_collapse" (t @-> size_t @-> ptr int64_t @-> returning t)

@@ -42,6 +42,7 @@ module Op : sig
   val element_type : t -> Element_type.t
   val dims : t -> int list
   val constant : Literal.t -> builder:Builder.t -> t
+  val normalize_index : rank:int -> dim_index:int -> int
 
   val parameter
     :  string
@@ -85,6 +86,10 @@ module Op : sig
   val zero_like : t -> t
   val einsum1 : t -> string -> t
   val reshape : t -> dims:int list -> t
+  val broadcast : t -> dims:int list -> t
+  val collapse : t -> dim_indexes:int list -> t
+  val transpose : t -> dim_indexes:int list -> t
+  val swap_dims : t -> dim_index1:int -> dim_index2:int -> t
   val convert : t -> element_type:Element_type.t -> t
   val dimensions_size : t -> dim_index:int -> t
 
@@ -123,6 +128,16 @@ module Op : sig
   (* Ternary *)
   val clamp : t -> t -> t -> t
   val select : t -> t -> t -> t
+
+  val gather
+    :  t
+    -> start_indices:t
+    -> offset_dims:int list
+    -> collapsed_slice_dims:int list
+    -> start_index_map:int list
+    -> set_index_vector_dim:int option
+    -> slice_sizes:int list
+    -> t
 end
 
 module Computation : sig

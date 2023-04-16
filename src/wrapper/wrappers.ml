@@ -195,6 +195,18 @@ module Op = struct
     List.init rank ~f:(fun i ->
       Ctypes.( +@ ) ptr i |> Ctypes.( !@ ) |> Unsigned.Size_t.to_int)
 
+  let normalize_index ~rank ~dim_index =
+    if 0 <= dim_index && dim_index < rank
+    then dim_index
+    else if dim_index + rank >= 0
+    then dim_index + rank
+    else [%message "ind out of bounds" (dim_index : int) (rank : int)] |> failwith_s
+
+  let normalize_indexes t ~dim_indexes =
+    let rank = rank t in
+    List.map dim_indexes ~f:(fun dim_index ->
+      normalize_index ~rank ~dim_index |> Int64.of_int_exn)
+
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
 
   let parameter name ~id ~element_type ~dims ~builder =
@@ -271,23 +283,123 @@ module Op = struct
     let rhs_c = List.map rhs_c ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
     let lhs_b = List.map lhs_b ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
     let rhs_b = List.map rhs_b ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
-    W.Op.dot_general
-      t1.ptr
-      t2.ptr
-      (CArray.start lhs_c)
-      (CArray.length lhs_c |> Unsigned.Size_t.of_int)
-      (CArray.start rhs_c)
-      (CArray.length rhs_c |> Unsigned.Size_t.of_int)
-      (CArray.start lhs_b)
-      (CArray.length lhs_b |> Unsigned.Size_t.of_int)
-      (CArray.start rhs_b)
-      (CArray.length rhs_b |> Unsigned.Size_t.of_int)
-    |> of_ptr ~builder:t1.builder
+    let t =
+      W.Op.dot_general
+        t1.ptr
+        t2.ptr
+        (CArray.start lhs_c)
+        (CArray.length lhs_c |> Unsigned.Size_t.of_int)
+        (CArray.start rhs_c)
+        (CArray.length rhs_c |> Unsigned.Size_t.of_int)
+        (CArray.start lhs_b)
+        (CArray.length lhs_b |> Unsigned.Size_t.of_int)
+        (CArray.start rhs_b)
+        (CArray.length rhs_b |> Unsigned.Size_t.of_int)
+      |> of_ptr ~builder:t1.builder
+    in
+    keep_alive lhs_c;
+    keep_alive rhs_c;
+    keep_alive lhs_b;
+    keep_alive rhs_b;
+    t
+
+  let gather
+    t
+    ~start_indices
+    ~offset_dims
+    ~collapsed_slice_dims
+    ~start_index_map
+    ~set_index_vector_dim
+    ~slice_sizes
+    =
+    let carray v = List.map v ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let offset_dims = carray offset_dims in
+    let collapsed_slice_dims = carray collapsed_slice_dims in
+    let start_index_map = carray start_index_map in
+    let set_index = Ctypes.(allocate_n int64_t ~count:1) in
+    Option.iter set_index_vector_dim ~f:(fun i ->
+      Ctypes.( <-@ ) set_index (Int64.of_int_exn i));
+    let slice_sizes = carray slice_sizes in
+    let t =
+      W.Op.gather
+        t.ptr
+        start_indices.ptr
+        (CArray.start offset_dims)
+        (CArray.length offset_dims |> Unsigned.Size_t.of_int)
+        (CArray.start collapsed_slice_dims)
+        (CArray.length collapsed_slice_dims |> Unsigned.Size_t.of_int)
+        (CArray.start start_index_map)
+        (CArray.length start_index_map |> Unsigned.Size_t.of_int)
+        (if Option.is_some set_index_vector_dim
+         then set_index
+         else Ctypes.null |> Ctypes.(from_voidp int64_t))
+        (CArray.start slice_sizes)
+        (CArray.length slice_sizes |> Unsigned.Size_t.of_int)
+      |> of_ptr ~builder:t.builder
+    in
+    keep_alive offset_dims;
+    keep_alive collapsed_slice_dims;
+    keep_alive start_index_map;
+    keep_alive set_index;
+    keep_alive slice_sizes;
+    t
 
   let reshape t ~dims =
     let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
     let ptr =
       W.Op.reshape
+        t.ptr
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (CArray.start dims)
+    in
+    keep_alive dims;
+    of_ptr ptr ~builder:t.builder
+
+  let broadcast t ~dims =
+    let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let ptr =
+      W.Op.broadcast
+        t.ptr
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (CArray.start dims)
+    in
+    keep_alive dims;
+    of_ptr ptr ~builder:t.builder
+
+  let collapse t ~dim_indexes =
+    let dims = normalize_indexes t ~dim_indexes |> CArray.of_list Ctypes.int64_t in
+    let ptr =
+      W.Op.collapse
+        t.ptr
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (CArray.start dims)
+    in
+    keep_alive dims;
+    of_ptr ptr ~builder:t.builder
+
+  let transpose t ~dim_indexes =
+    let dims = normalize_indexes t ~dim_indexes |> CArray.of_list Ctypes.int64_t in
+    let ptr =
+      W.Op.transpose
+        t.ptr
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (CArray.start dims)
+    in
+    keep_alive dims;
+    of_ptr ptr ~builder:t.builder
+
+  let swap_dims t ~dim_index1 ~dim_index2 =
+    let rank = rank t in
+    let dim1 = normalize_index ~rank ~dim_index:dim_index1 in
+    let dim2 = normalize_index ~rank ~dim_index:dim_index2 in
+    let dims =
+      List.init rank ~f:(fun idx ->
+        (if idx = dim1 then dim2 else if idx = dim2 then dim1 else idx)
+        |> Int64.of_int_exn)
+      |> CArray.of_list Ctypes.int64_t
+    in
+    let ptr =
+      W.Op.transpose
         t.ptr
         (CArray.length dims |> Unsigned.Size_t.of_int)
         (CArray.start dims)
