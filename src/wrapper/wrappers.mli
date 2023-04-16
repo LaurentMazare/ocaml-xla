@@ -40,7 +40,65 @@ module Op : sig
   val constant : Literal.t -> builder:Builder.t -> t
   val r0_f32 : float -> builder:Builder.t -> t
   val r0_f64 : float -> builder:Builder.t -> t
+
+  (* Unary. *)
+  val not_ : t -> t
+  val abs : t -> t
+  val exp : t -> t
+  val expm1 : t -> t
+  val floor : t -> t
+  val ceil : t -> t
+  val round : t -> t
+  val log : t -> t
+  val log1p : t -> t
+  val logistic : t -> t
+  val sign : t -> t
+  val clz : t -> t
+  val cos : t -> t
+  val sin : t -> t
+  val tanh : t -> t
+  val real : t -> t
+  val imag : t -> t
+  val sqrt : t -> t
+  val rsqrt : t -> t
+  val cbrt : t -> t
+  val is_finite : t -> t
+  val neg : t -> t
+  val lower_triangle : t -> t
+  val upper_triangle : t -> t
+  val copy : t -> t
+  val clone : t -> t
+  val zeros_like : t -> t
+  val zero_like : t -> t
+
+  (* Binary. *)
   val add : t -> t -> t
+  val sub : t -> t -> t
+  val mul : t -> t -> t
+  val div : t -> t -> t
+  val rem : t -> t -> t
+  val max : t -> t -> t
+  val min : t -> t -> t
+  val and_ : t -> t -> t
+  val or_ : t -> t -> t
+  val xor : t -> t -> t
+  val atan2 : t -> t -> t
+  val pow : t -> t -> t
+  val dot : t -> t -> t
+  val eq : t -> t -> t
+  val ne : t -> t -> t
+  val ge : t -> t -> t
+  val gt : t -> t -> t
+  val le : t -> t -> t
+  val lt : t -> t -> t
+
+  (* Ternary *)
+  val clamp : t -> t -> t -> t
+  val select : t -> t -> t -> t
+
+  (* Others *)
+  val einsum1 : t -> string -> t
+  val einsum2 : t -> t -> string -> t
 end
 
 module Computation : sig
