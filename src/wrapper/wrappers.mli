@@ -21,8 +21,8 @@ module Literal : sig
 
   val create : Element_type.t -> int list -> t
   val clone : t -> t
-  val reshape : t -> int list -> t
-  val convert : t -> Element_type.t -> t
+  val reshape : t -> dims:int list -> t
+  val convert : t -> element_type:Element_type.t -> t
   val element_type : t -> Element_type.t
   val size_bytes : t -> int
   val element_count : t -> int
@@ -37,6 +37,7 @@ end
 module Op : sig
   type t
 
+  val builder : t -> Builder.t
   val constant : Literal.t -> builder:Builder.t -> t
   val r0_f32 : float -> builder:Builder.t -> t
   val r0_f64 : float -> builder:Builder.t -> t
@@ -92,6 +93,15 @@ module Op : sig
   val le : t -> t -> t
   val lt : t -> t -> t
 
+  val dot_general
+    :  t
+    -> t
+    -> lhs_c:int list
+    -> rhs_c:int list
+    -> lhs_b:int list
+    -> rhs_b:int list
+    -> t
+
   (* Ternary *)
   val clamp : t -> t -> t -> t
   val select : t -> t -> t -> t
@@ -99,6 +109,8 @@ module Op : sig
   (* Others *)
   val einsum1 : t -> string -> t
   val einsum2 : t -> t -> string -> t
+  val reshape : t -> dims:int list -> t
+  val convert : t -> element_type:Element_type.t -> t
 end
 
 module Computation : sig

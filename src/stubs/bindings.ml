@@ -106,14 +106,27 @@ module C (F : Cstubs.FOREIGN) = struct
     let atan2 = foreign "op_atan2" (t @-> t @-> returning t)
     let pow = foreign "op_pow" (t @-> t @-> returning t)
     let dot = foreign "op_dot" (t @-> t @-> returning t)
-    (* TODO: dot_general *)
-
     let eq = foreign "op_eq" (t @-> t @-> returning t)
     let ne = foreign "op_ne" (t @-> t @-> returning t)
     let ge = foreign "op_ge" (t @-> t @-> returning t)
     let gt = foreign "op_gt" (t @-> t @-> returning t)
     let le = foreign "op_le" (t @-> t @-> returning t)
     let lt = foreign "op_lt" (t @-> t @-> returning t)
+
+    let dot_general =
+      foreign
+        "op_dot_general"
+        (t
+         @-> t
+         @-> ptr int64_t
+         @-> size_t
+         @-> ptr int64_t
+         @-> size_t
+         @-> ptr int64_t
+         @-> size_t
+         @-> ptr int64_t
+         @-> size_t
+         @-> returning t)
 
     (* Unary functions. *)
     let not_ = foreign "op_not" (t @-> returning t)

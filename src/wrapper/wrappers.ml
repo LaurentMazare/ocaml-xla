@@ -69,7 +69,7 @@ module Literal = struct
 
   let clone t = W.Literal.clone t |> of_ptr
 
-  let reshape t dims =
+  let reshape t ~dims =
     let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
     let ptr = Ctypes.(allocate_n (ptr W.Literal.struct_) ~count:1) in
     let status =
@@ -83,7 +83,7 @@ module Literal = struct
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr
 
-  let convert t element_type =
+  let convert t ~element_type =
     let ptr = Ctypes.(allocate_n (ptr W.Literal.struct_) ~count:1) in
     let status = W.Literal.convert t (Element_type.to_c_int element_type) ptr in
     Status.ok_exn status;
@@ -169,6 +169,7 @@ module Op = struct
   let of_ptr ptr ~builder =
     if Ctypes.is_null ptr then failwith "null Op pointer";
     Caml.Gc.finalise W.Op.release ptr;
+    Builder.current_status builder |> Or_error.ok_exn;
     { ptr; builder }
 
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
@@ -225,6 +226,41 @@ module Op = struct
   let einsum2 t1 t2 s = W.Op.einsum2 t1.ptr t2.ptr s |> of_ptr ~builder:t1.builder
   let r0_f32 v ~builder = W.Op.r0_f32 builder v |> of_ptr ~builder
   let r0_f64 v ~builder = W.Op.r0_f64 builder v |> of_ptr ~builder
+
+  let dot_general t1 t2 ~lhs_c ~rhs_c ~lhs_b ~rhs_b =
+    let lhs_c = List.map lhs_c ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let rhs_c = List.map rhs_c ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let lhs_b = List.map lhs_b ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let rhs_b = List.map rhs_b ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    W.Op.dot_general
+      t1.ptr
+      t2.ptr
+      (CArray.start lhs_c)
+      (CArray.length lhs_c |> Unsigned.Size_t.of_int)
+      (CArray.start rhs_c)
+      (CArray.length rhs_c |> Unsigned.Size_t.of_int)
+      (CArray.start lhs_b)
+      (CArray.length lhs_b |> Unsigned.Size_t.of_int)
+      (CArray.start rhs_b)
+      (CArray.length rhs_b |> Unsigned.Size_t.of_int)
+    |> of_ptr ~builder:t1.builder
+
+  let reshape t ~dims =
+    let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let ptr =
+      W.Op.reshape
+        t.ptr
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (CArray.start dims)
+    in
+    keep_alive dims;
+    of_ptr ptr ~builder:t.builder
+
+  let convert t ~element_type =
+    let ptr = W.Op.convert_element_types t.ptr (Element_type.to_c_int element_type) in
+    of_ptr ptr ~builder:t.builder
+
+  let builder t = t.builder
 end
 
 module Computation = struct
