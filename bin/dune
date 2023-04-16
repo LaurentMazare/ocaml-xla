@@ -1,0 +1,6 @@
+(executable
+ (public_name xla)
+ (name main)
+ (libraries xla base sexplib stdio)
+ (preprocess
+  (pps ppx_inline_test ppx_expect ppx_sexp_conv ppx_sexp_message)))
