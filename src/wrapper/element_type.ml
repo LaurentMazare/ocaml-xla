@@ -1,3 +1,6 @@
+open! Import
+open! Base
+
 type t =
   | Invalid
   | Pred
@@ -103,3 +106,17 @@ let size_in_bytes = function
   | Tuple -> None
   | OpaqueType -> None
   | Token -> None
+
+let check_exn (type a b) t (kind : (a, b) Bigarray.kind) =
+  match t, kind with
+  | U8, (Char | Int8_unsigned)
+  | U16, Int16_unsigned
+  | S8, Int8_signed
+  | S16, Int16_signed
+  | S32, Int32
+  | S64, Int64
+  | F32, Float32
+  | F64, Float64 -> ()
+  | t, _ba_kind ->
+    (* TODO: Include the ba_kind value by converting it to a string or sexp. *)
+    failwith_s [%message "kind do not match" (t : t)]

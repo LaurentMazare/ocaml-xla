@@ -98,20 +98,6 @@ module Literal = struct
     W.Literal.shape t ptr;
     Ctypes.( !@ ) ptr |> Shape.of_ptr
 
-  let check_element_type (type a b) element_type (kind : (a, b) Bigarray.kind) =
-    match (element_type : Element_type.t), kind with
-    | U8, (Char | Int8_unsigned)
-    | U16, Int16_unsigned
-    | S8, Int8_signed
-    | S16, Int16_signed
-    | S32, Int32
-    | S64, Int64
-    | F32, Float32
-    | F64, Float64 -> ()
-    | element_type, _ba_kind ->
-      (* TODO: Include the ba_kind value by converting it to a string or sexp. *)
-      failwith_s [%message "kind do not match" (element_type : Element_type.t)]
-
   let check_same_dims_and_kind (type a b) t (ba : (a, b, _) Bigarray.Genarray.t) =
     (match Bigarray.Genarray.layout ba with
      | C_layout -> ()
@@ -122,7 +108,7 @@ module Literal = struct
     if not (Array.equal Int.equal ba_dims dims)
     then
       failwith_s [%message "dims do not match" (ba_dims : int array) (dims : int array)];
-    check_element_type (Shape.element_type shape) (Bigarray.Genarray.kind ba)
+    Element_type.check_exn (Shape.element_type shape) (Bigarray.Genarray.kind ba)
 
   let copy_from_bigarray t ~src =
     check_same_dims_and_kind t src;
@@ -172,14 +158,6 @@ module Literal = struct
     keep_alive src;
     keep_alive dims;
     t
-
-  let to_bigarray (type a b) t (kind : (a, b) Bigarray.kind) =
-    let shape = shape t in
-    check_element_type (Shape.element_type shape) kind;
-    let dims = Shape.dimensions shape |> Array.of_list in
-    let dst = Bigarray.Genarray.create kind C_layout dims in
-    copy_to_bigarray t ~dst;
-    dst
 end
 
 module Op = struct
