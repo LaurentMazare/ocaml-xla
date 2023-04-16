@@ -97,6 +97,89 @@ module Literal = struct
     let ptr = Ctypes.(allocate_n (ptr W.Shape.struct_) ~count:1) in
     W.Literal.shape t ptr;
     Ctypes.( !@ ) ptr |> Shape.of_ptr
+
+  let check_element_type (type a b) element_type (kind : (a, b) Bigarray.kind) =
+    match (element_type : Element_type.t), kind with
+    | U8, (Char | Int8_unsigned)
+    | U16, Int16_unsigned
+    | S8, Int8_signed
+    | S16, Int16_signed
+    | S32, Int32
+    | S64, Int64
+    | F32, Float32
+    | F64, Float64 -> ()
+    | element_type, _ba_kind ->
+      (* TODO: Include the ba_kind value by converting it to a string or sexp. *)
+      failwith_s [%message "kind do not match" (element_type : Element_type.t)]
+
+  let check_same_dims_and_kind (type a b) t (ba : (a, b, _) Bigarray.Genarray.t) =
+    (match Bigarray.Genarray.layout ba with
+     | C_layout -> ()
+     | _ -> .);
+    let shape = shape t in
+    let dims = Shape.dimensions shape |> Array.of_list in
+    let ba_dims = Bigarray.Genarray.dims ba in
+    if not (Array.equal Int.equal ba_dims dims)
+    then
+      failwith_s [%message "dims do not match" (ba_dims : int array) (dims : int array)];
+    check_element_type (Shape.element_type shape) (Bigarray.Genarray.kind ba)
+
+  let copy_from_bigarray t ~src =
+    check_same_dims_and_kind t src;
+    let size_in_bytes = Bigarray.Genarray.size_in_bytes src in
+    W.Literal.copy_from
+      t
+      (Ctypes.bigarray_start Ctypes.genarray src |> Ctypes.to_voidp)
+      (Unsigned.Size_t.of_int size_in_bytes);
+    keep_alive src
+
+  let copy_to_bigarray t ~dst =
+    check_same_dims_and_kind t dst;
+    let size_in_bytes = Bigarray.Genarray.size_in_bytes dst in
+    W.Literal.copy_to
+      t
+      (Ctypes.bigarray_start Ctypes.genarray dst |> Ctypes.to_voidp)
+      (Unsigned.Size_t.of_int size_in_bytes);
+    keep_alive dst
+
+  let of_bigarray (type a b) (src : (a, b, Bigarray.c_layout) Bigarray.Genarray.t) =
+    let element_type : Element_type.t =
+      match Bigarray.Genarray.kind src with
+      | Char | Int8_unsigned -> U8
+      | Int16_unsigned -> U16
+      | Int8_signed -> S8
+      | Int16_signed -> S16
+      | Int32 -> S32
+      | Int64 -> S64
+      | Float32 -> F32
+      | Float64 -> F64
+      | _ba_kind -> failwith_s [%message "unsupported bigarray type"]
+    in
+    let dims =
+      Bigarray.Genarray.dims src
+      |> Array.to_list
+      |> List.map ~f:Int64.of_int
+      |> CArray.of_list Ctypes.int64_t
+    in
+    let t =
+      W.Literal.create_from_shape_and_data
+        (Element_type.to_c_int element_type)
+        (CArray.start dims)
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (Ctypes.bigarray_start Ctypes.genarray src |> Ctypes.to_voidp)
+        (Bigarray.Genarray.size_in_bytes src |> Unsigned.Size_t.of_int)
+    in
+    keep_alive src;
+    keep_alive dims;
+    t
+
+  let to_bigarray (type a b) t (kind : (a, b) Bigarray.kind) =
+    let shape = shape t in
+    check_element_type (Shape.element_type shape) kind;
+    let dims = Shape.dimensions shape |> Array.of_list in
+    let dst = Bigarray.Genarray.create kind C_layout dims in
+    copy_to_bigarray t ~dst;
+    dst
 end
 
 module Op = struct

@@ -27,6 +27,16 @@ module Literal : sig
   val size_bytes : t -> int
   val element_count : t -> int
   val shape : t -> Shape.t
+
+  (* Bigarray interop. *)
+  val of_bigarray : (_, _, Bigarray.c_layout) Bigarray.Genarray.t -> t
+  val copy_from_bigarray : t -> src:(_, _, Bigarray.c_layout) Bigarray.Genarray.t -> unit
+  val copy_to_bigarray : t -> dst:(_, _, Bigarray.c_layout) Bigarray.Genarray.t -> unit
+
+  val to_bigarray
+    :  t
+    -> ('a, 'b) Bigarray.kind
+    -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t
 end
 
 module Op : sig

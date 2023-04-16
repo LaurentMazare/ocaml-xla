@@ -63,7 +63,11 @@ module C (F : Cstubs.FOREIGN) = struct
         "literal_reshape"
         (t @-> ptr int64_t @-> size_t @-> ptr t @-> returning Status.t)
 
-    let copy = foreign "literal_copy" (t @-> ptr void @-> size_t @-> returning void)
+    let copy_to = foreign "literal_copy_to" (t @-> ptr void @-> size_t @-> returning void)
+
+    let copy_from =
+      foreign "literal_copy_from" (t @-> ptr void @-> size_t @-> returning void)
+
     let convert = foreign "literal_convert" (t @-> int @-> ptr t @-> returning Status.t)
     let shape = foreign "literal_shape" (t @-> ptr Shape.t @-> returning void)
     let element_type = foreign "literal_element_type" (t @-> returning int)

@@ -15,4 +15,5 @@ let () =
   Stdio.printf "Got %d buffers\n" (Array.length buffers);
   let literal = W.PjRtBuffer.to_literal_sync buffers.(0) in
   Stdio.printf "Size in bytes %d\n" (W.Literal.size_bytes literal);
-  ()
+  let ba = W.Literal.to_bigarray literal Bigarray.float32 in
+  Stdio.printf "Result %f\n" (Bigarray.Genarray.get ba [||])
