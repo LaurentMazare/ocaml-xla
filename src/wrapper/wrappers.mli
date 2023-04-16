@@ -40,7 +40,7 @@ module Computation : sig
   type t
 
   val name : t -> string
-  val build : Builder.t -> root:Op.t -> t
+  val build : root:Op.t -> t
 end
 
 module PjRtDevice : sig
@@ -60,13 +60,20 @@ module PjRtClient : sig
   val cpu : unit -> t
   val gpu : memory_fraction:float -> preallocate:bool -> t
   val device_count : t -> int
+  val devices : t -> PjRtDevice.t list
   val addressable_device_count : t -> int
+  val addressable_devices : t -> PjRtDevice.t list
   val platform_name : t -> string
   val platform_version : t -> string
 end
 
 module PjRtBuffer : sig
   type t
+
+  val of_host_literal : Literal.t -> device:PjRtDevice.t -> t
+  val on_device_shape : t -> Shape.t
+  val to_literal_sync : t -> Literal.t
+  val copy_to_device : t -> device:PjRtDevice.t -> t
 end
 
 module PjRtLoadedExecutable : sig
