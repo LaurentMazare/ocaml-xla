@@ -13,3 +13,5 @@ let _check_and_release_status status =
     let error_message = W.Status.error_message status in
     W.Status.release status;
     failwith error_message)
+
+module Shape = struct end
