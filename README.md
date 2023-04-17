@@ -29,7 +29,7 @@ wget https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/vocab.bpe
 
 # Extract the pre-trained weights, this requires the transformers python library to be installed.
 # This creates a npz file storing all the weights.
-python examples/nanogpt/get_weights.py
+python examples/get_gpt2_weights.py
 
 # Run the example.
 dune exec examples/nanogpt.exe
