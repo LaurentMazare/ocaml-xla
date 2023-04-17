@@ -16,6 +16,12 @@ let use_cpu = true
 let num_samples = 10
 let failwith_s s = Sexp.to_string s |> failwith
 
+let time_it str ~f =
+  let start_time = Unix.gettimeofday () in
+  let res = f () in
+  Stdio.printf "%s (%.2fs)\n%!" str (Unix.gettimeofday () -. start_time);
+  res
+
 module Config = struct
   type t =
     { block_size : int
@@ -262,12 +268,21 @@ let () =
   in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
   Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
-  let gpt2 = gpt_computation Config.gpt2 ~b_sz in
-  let exe = Xla.Executable.compile client gpt2 in
-  Stdio.printf "Done with the compilation\n%!";
+  let weights =
+    time_it "Read weight file" ~f:(fun () -> Xla.Npy.Npz.read_all "gpt2.npz")
+  in
+  Hashtbl.iter_keys weights ~f:(fun name -> Stdio.printf "Literal %s\n%!" name);
+  let gpt2 =
+    time_it "Generated the op" ~f:(fun () -> gpt_computation Config.gpt2 ~b_sz)
+  in
+  let exe =
+    time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client gpt2)
+  in
   for i = 1 to num_samples do
     let input = Literal.create ~element_type:F32 ~dims:[ b_sz; Config.gpt2.block_size ] in
-    let buffers = Xla.Executable.execute exe [ input ] in
+    let buffers =
+      time_it "Generated some samples" ~f:(fun () -> Xla.Executable.execute exe [ input ])
+    in
     let buffers = buffers.(0) in
     Stdio.printf "%d Got %d buffers\n%!" i (Array.length buffers)
   done

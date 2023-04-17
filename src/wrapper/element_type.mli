@@ -25,3 +25,7 @@ val to_c_int : t -> int
 val to_string : t -> string
 val size_in_bytes : t -> int option
 val check_exn : t -> (_, _) Bigarray.kind -> unit
+
+type ba_kind = P : (_, _) Bigarray.kind -> ba_kind
+
+val ba_kind : t -> ba_kind option

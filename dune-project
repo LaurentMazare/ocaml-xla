@@ -19,6 +19,6 @@
  (name xla)
  (synopsis "XLA bindings for OCaml")
  (description "OCaml bindings for XLA (Accelerated Linear Algebra), a compiler for Machine Learning.")
- (depends ocaml dune)
+ (depends base stdio camlzip ctypes ctypes-foreign ocaml dune)
  (tags
   (topics "to describe" your project)))

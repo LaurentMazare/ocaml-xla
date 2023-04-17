@@ -120,3 +120,19 @@ let check_exn (type a b) t (kind : (a, b) Bigarray.kind) =
   | t, _ba_kind ->
     (* TODO: Include the ba_kind value by converting it to a string or sexp. *)
     failwith_s [%message "kind do not match" (t : t)]
+
+type ba_kind = P : (_, _) Bigarray.kind -> ba_kind
+
+let ba_kind = function
+  | S8 -> P Int8_signed |> Option.some
+  | S16 -> P Int16_signed |> Option.some
+  | S32 -> P Int32 |> Option.some
+  | S64 -> P Int64 |> Option.some
+  | U8 -> P Int8_unsigned |> Option.some
+  | U16 -> P Int16_unsigned |> Option.some
+  | F16 -> P Float32 |> Option.some
+  | F32 -> P Float32 |> Option.some
+  | F64 -> P Float64 |> Option.some
+  | C64 -> P Complex32 |> Option.some
+  | C128 -> P Complex64 |> Option.some
+  | U32 | U64 | Bf16 | Invalid | Pred | Tuple | OpaqueType | Token -> None

@@ -11,6 +11,11 @@ homepage: "https://github.com/LaurentMazare/ocaml-xla"
 doc: "https://url/to/documentation"
 bug-reports: "https://github.com/LaurentMazare/ocaml-xla/issues"
 depends: [
+  "base"
+  "stdio"
+  "camlzip"
+  "ctypes"
+  "ctypes-foreign"
   "ocaml"
   "dune" {>= "3.1"}
   "odoc" {with-doc}

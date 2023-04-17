@@ -29,3 +29,6 @@ setup.log
 # Local OPAM switch
 _opam/
 xla-extension
+
+vocab.bpe
+*.npz
