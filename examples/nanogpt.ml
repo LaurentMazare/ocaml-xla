@@ -40,6 +40,10 @@ let new_gelu xs =
 module Embedding = struct
   type t = { embeddings : Literal.t }
 
+  let create ~vocab_size ~n_embd =
+    let embeddings = Literal.create ~element_type:F32 ~dims:[ vocab_size; n_embd ] in
+    { embeddings }
+
   let forward t xs =
     let builder = Op.builder xs in
     Op.take (Op.constant t.embeddings ~builder) ~start_indices:xs ~dim_index:0
@@ -51,6 +55,11 @@ module LayerNorm = struct
     ; bias : Literal.t
     ; dims : int list
     }
+
+  let create ~size =
+    let scale = Literal.create ~element_type:F32 ~dims:[ size ] in
+    let bias = Literal.create ~element_type:F32 ~dims:[ size ] in
+    { scale; bias; dims = [ 1; 1; size ] }
 
   let forward t xs =
     let builder = Op.builder xs in
@@ -65,6 +74,15 @@ module Linear = struct
     ; bs : Literal.t option
     ; dims : int list
     }
+
+  let create ~in_size ~out_size ~with_bias =
+    let ws = Literal.create ~element_type:F32 ~dims:[ in_size; out_size ] in
+    let bs =
+      if with_bias
+      then Literal.create ~element_type:F32 ~dims:[ out_size ] |> Option.some
+      else None
+    in
+    { ws; bs; dims = [ 1; 1; out_size ] }
 
   let forward t xs =
     let builder = Op.builder xs in
@@ -85,6 +103,11 @@ module CausalSelfAttention = struct
     ; n_head : int
     ; n_embd : int
     }
+
+  let create ~n_head ~n_embd =
+    let c_attn = Linear.create ~in_size:n_embd ~out_size:(3 * n_embd) ~with_bias:true in
+    let c_proj = Linear.create ~in_size:n_embd ~out_size:n_embd ~with_bias:true in
+    { c_attn; c_proj; n_head; n_embd }
 
   let masked_fill ~mask ~on_true ~on_false =
     let dims = Op.dims mask in
@@ -107,9 +130,8 @@ module CausalSelfAttention = struct
     let q = slice_qkv ~start_index:(0 * t.n_embd) ~stop_index:(1 * t.n_embd) in
     let k = slice_qkv ~start_index:(1 * t.n_embd) ~stop_index:(2 * t.n_embd) in
     let v = slice_qkv ~start_index:(2 * t.n_embd) ~stop_index:(3 * t.n_embd) in
-    let matmul _t1 _t2 = failwith "TODO" in
     let att =
-      matmul q (Op.swap_dims k ~dim_index1:(-2) ~dim_index2:(-1))
+      Op.matmul q (Op.swap_dims k ~dim_index1:(-2) ~dim_index2:(-1))
       |> Op.mul
            (Op.r0_f32
               (1. /. Float.sqrt (Op.dims k |> List.last_exn |> Float.of_int))
@@ -128,7 +150,7 @@ module CausalSelfAttention = struct
       masked_fill ~mask:(Op.eq mask zero) ~on_false:att ~on_true:Float.neg_infinity
     in
     let y = Op.softmax att ~dim_index:(-1) in
-    matmul y v
+    Op.matmul y v
     |> Op.swap_dims ~dim_index1:1 ~dim_index2:2
     |> Op.reshape ~dims:[ b_sz; t_sz; c_sz ]
     |> Linear.forward t.c_proj
@@ -140,6 +162,11 @@ module Mlp = struct
     ; c_proj : Linear.t
     }
 
+  let create ~n_embd =
+    let c_fc = Linear.create ~in_size:n_embd ~out_size:(4 * n_embd) ~with_bias:true in
+    let c_proj = Linear.create ~in_size:(4 * n_embd) ~out_size:n_embd ~with_bias:true in
+    { c_fc; c_proj }
+
   let forward t xs = Linear.forward t.c_fc xs |> new_gelu |> Linear.forward t.c_proj
 end
 
@@ -150,6 +177,13 @@ module Block = struct
     ; ln2 : LayerNorm.t
     ; mlp : Mlp.t
     }
+
+  let create ~n_head ~n_embd =
+    let ln1 = LayerNorm.create ~size:n_embd in
+    let attn = CausalSelfAttention.create ~n_head ~n_embd in
+    let ln2 = LayerNorm.create ~size:n_embd in
+    let mlp = Mlp.create ~n_embd in
+    { ln1; attn; ln2; mlp }
 
   let forward t xs =
     LayerNorm.forward t.ln1 xs
@@ -169,14 +203,28 @@ module Gpt = struct
     ; ln_f : LayerNorm.t
     }
 
+  let create config =
+    let { Config.n_embd; n_head; vocab_size; block_size; n_layer; _ } = config in
+    let lm_head = Linear.create ~in_size:n_embd ~out_size:vocab_size ~with_bias:false in
+    let wte = Embedding.create ~vocab_size ~n_embd in
+    let wpe = Embedding.create ~vocab_size:block_size ~n_embd in
+    let blocks = List.init n_layer ~f:(fun _i -> Block.create ~n_head ~n_embd) in
+    let ln_f = LayerNorm.create ~size:n_embd in
+    { lm_head; wte; wpe; blocks; ln_f }
+
   let forward t xs =
-    let _builder = Op.builder xs in
+    let builder = Op.builder xs in
     let _b_sz, t_sz =
       match Op.dims xs with
       | [ b; t ] -> b, t
       | dims -> [%message "expected 2 dims" (dims : int list)] |> failwith_s
     in
-    let pos = failwith "TODO" |> Op.reshape ~dims:[ 1; t_sz ] in
+    let pos =
+      (* TODO: Use the proper values. *)
+      Literal.create ~element_type:S32 ~dims:[ t_sz ]
+      |> Op.constant ~builder
+      |> Op.reshape ~dims:[ 1; t_sz ]
+    in
     let tok_emb = Embedding.forward t.wte xs in
     let pos_emb = Embedding.forward t.wpe pos in
     List.fold t.blocks ~init:(Op.add tok_emb pos_emb) ~f:(fun acc b ->
@@ -186,7 +234,8 @@ module Gpt = struct
     |> Linear.forward t.lm_head
 end
 
-let _gpt_computation (config : Config.t) gpt ~b_sz =
+let gpt_computation (config : Config.t) ~b_sz =
+  let gpt = Gpt.create config in
   let builder = Xla.Builder.create ~name:"gpt" in
   let input =
     Op.parameter
@@ -210,16 +259,8 @@ let () =
   in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
   Stdio.printf "Platform version: %s\n" (Xla.Client.platform_version client);
-  let builder = Xla.Builder.create ~name:"mybuilder" in
-  let r0_f32 = Xla.Op.r0_f32 ~builder in
-  let sum = Xla.Op.add (r0_f32 39.) (r0_f32 3.) in
-  let computation = Xla.Computation.build ~root:sum in
-  Stdio.printf "Computation %s\n" (Xla.Computation.name computation);
-  let exe = Xla.Executable.compile client computation in
-  let buffers = Xla.Executable.execute exe [] in
-  let buffers = buffers.(0) in
-  Stdio.printf "Got %d buffers\n" (Array.length buffers);
-  let literal = Xla.Buffer.to_literal_sync buffers.(0) in
-  Stdio.printf "Size in bytes %d\n" (Xla.Literal.size_bytes literal);
-  let ba = Xla.Literal.to_bigarray literal Bigarray.float32 in
-  Stdio.printf "Result %f\n" (Bigarray.Genarray.get ba [||])
+  let gpt2 = gpt_computation Config.gpt2 ~b_sz:2 in
+  let _exe = Xla.Executable.compile client gpt2 in
+  for i = 1 to num_samples do
+    Stdio.printf "%d\n" i
+  done
