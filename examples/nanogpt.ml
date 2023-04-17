@@ -2,15 +2,17 @@
    This only contains the inference part as the xla crate does not support backpropagation.
    No dropout as this is inference only.
 
-   This example requires the following tokenizer config file:
+   This example requires the following tokenizer config files:
    https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/vocab.bpe
-   And the gpt2.npz weight file that can be extracted by running the get_weights.py script.
+   https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/encoder.json
+   And the gpt2.npz weight file that can be extracted by running the get_nanogpt_weights.py script.
 *)
 
 open! Base
 module Element_type = Xla.Element_type
 module Literal = Xla.Literal
 module Op = Xla.Op
+module T = Gpt2_tokenizer
 
 let temperature = 0.8
 let use_cpu = true
@@ -327,8 +329,44 @@ let gpt_computation vs config ~b_sz =
   in
   Xla.Computation.build ~root
 
+let sample ~tokenizer ~exe =
+  let block_size = Config.gpt2.block_size in
+  let vocab_size = Config.gpt2.vocab_size in
+  let tokens = Queue.create () in
+  let ba = Bigarray.Array2.create Int32 C_layout 1 block_size in
+  for _i = 1 to 20 do
+    for idx = 0 to block_size - 1 do
+      let tokens_index = Queue.length tokens - block_size + idx in
+      let token = if tokens_index < 0 then 198 else Queue.get tokens tokens_index in
+      ba.{0, idx} <- Int32.of_int_exn token
+    done;
+    let ba = Bigarray.genarray_of_array2 ba in
+    let buffers = Xla.Executable.execute exe [ Literal.of_bigarray ba ] in
+    let probabilities =
+      Xla.Buffer.to_literal_sync buffers.(0).(0)
+      |> Literal.to_bigarray ~kind:Float32
+      |> fun ba -> Bigarray.reshape_1 ba vocab_size
+    in
+    (* Naive linear time multinomial sampling. *)
+    let sum_p = ref 0. in
+    for i = 0 to vocab_size - 1 do
+      sum_p := !sum_p +. probabilities.{i}
+    done;
+    let p = ref (Random.float !sum_p) in
+    Stdio.printf ">>> %f %f\n%!" !sum_p !p;
+    let token = ref None in
+    for i = 0 to vocab_size - 1 do
+      p := !p -. probabilities.{i};
+      if Float.is_non_positive !p && Option.is_none !token then token := Some i
+    done;
+    let token = Option.value !token ~default:0 in
+    Stdio.printf ">>> %f %f %d\n%!" !sum_p !p token;
+    Queue.enqueue tokens token
+  done;
+  Queue.to_list tokens |> T.decode tokenizer
+
 let () =
-  let b_sz = 2 in
+  let tokenizer = T.create ~vocab_filename:"encoder.json" ~merge_filename:"vocab.bpe" in
   let client =
     if use_cpu
     then Xla.Client.cpu ()
@@ -338,16 +376,13 @@ let () =
   Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
   let vs = time_it "Read weight file" ~f:(fun () -> VarStore.create_npz "gpt2.npz") in
   let gpt2 =
-    time_it "Generated the op" ~f:(fun () -> gpt_computation vs Config.gpt2 ~b_sz)
+    time_it "Generated the op" ~f:(fun () -> gpt_computation vs Config.gpt2 ~b_sz:1)
   in
   let exe =
     time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client gpt2)
   in
   for i = 1 to num_samples do
-    let input = Literal.create ~element_type:F32 ~dims:[ b_sz; Config.gpt2.block_size ] in
-    let buffers =
-      time_it "Generated some samples" ~f:(fun () -> Xla.Executable.execute exe [ input ])
-    in
-    let buffers = buffers.(0) in
-    Stdio.printf "%d Got %d buffers\n%!" i (Array.length buffers)
+    time_it "Sampled" ~f:(fun () ->
+      let sample = sample ~tokenizer ~exe in
+      Stdio.printf "%d ----\n%s\n----\n%!" i sample)
   done

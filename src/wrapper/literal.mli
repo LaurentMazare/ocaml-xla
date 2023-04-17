@@ -5,5 +5,5 @@ val dims : t -> int list
 
 val to_bigarray
   :  t
-  -> ('a, 'b) Bigarray.kind
+  -> kind:('a, 'b) Bigarray.kind
   -> ('a, 'b, Bigarray.c_layout) Bigarray.Genarray.t

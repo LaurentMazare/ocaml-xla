@@ -31,4 +31,5 @@ _opam/
 xla-extension
 
 vocab.bpe
+encoder.json
 *.npz

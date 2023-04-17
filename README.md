@@ -26,6 +26,7 @@ running the example. In order to do this, run the following commands:
 ```bash
 # Download the vocab file.
 wget https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/vocab.bpe
+wget https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/encoder.json
 
 # Extract the pre-trained weights, this requires the transformers python library to be installed.
 # This creates a npz file storing all the weights.
