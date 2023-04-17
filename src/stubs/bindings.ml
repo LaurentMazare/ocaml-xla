@@ -76,6 +76,15 @@ module C (F : Cstubs.FOREIGN) = struct
     let release = foreign "literal_free" (t @-> returning void)
   end
 
+  module Computation0 = struct
+    type modl
+    type struct_ = modl Ctypes.structure
+    type t = struct_ ptr
+
+    let struct_ : struct_ typ = structure "_xla_computation"
+    let t : t typ = ptr struct_
+  end
+
   module Op = struct
     type modl
     type struct_ = modl Ctypes.structure
@@ -167,6 +176,11 @@ module C (F : Cstubs.FOREIGN) = struct
     let convert_element_types =
       foreign "op_convert_element_type" (t @-> int @-> returning t)
 
+    let reduce =
+      foreign
+        "op_reduce"
+        (t @-> t @-> Computation0.t @-> ptr int64_t @-> size_t @-> returning t)
+
     let gather =
       foreign
         "op_gather"
@@ -210,17 +224,19 @@ module C (F : Cstubs.FOREIGN) = struct
     let get_dimensions =
       foreign "get_dimensions" (Builder.t @-> t @-> ptr size_t @-> returning Status.t)
 
+    let r0_i32 = foreign "constant_r0_int32_t" (Builder.t @-> int32_t @-> returning t)
+    let r0_i64 = foreign "constant_r0_int64_t" (Builder.t @-> int64_t @-> returning t)
+    let r0_u32 = foreign "constant_r0_uint32_t" (Builder.t @-> uint32_t @-> returning t)
+    let r0_u64 = foreign "constant_r0_uint64_t" (Builder.t @-> uint64_t @-> returning t)
     let r0_f32 = foreign "constant_r0_float" (Builder.t @-> float @-> returning t)
     let r0_f64 = foreign "constant_r0_double" (Builder.t @-> double @-> returning t)
+    let min_value = foreign "op_min_value" (Builder.t @-> int @-> returning t)
+    let max_value = foreign "op_max_value" (Builder.t @-> int @-> returning t)
   end
 
   module Computation = struct
-    type modl
-    type struct_ = modl Ctypes.structure
-    type t = struct_ ptr
+    include Computation0
 
-    let struct_ : struct_ typ = structure "_xla_computation"
-    let t : t typ = ptr struct_
     let name = foreign "xla_computation_name" (t @-> returning string)
     let build = foreign "build" (Builder.t @-> Op.t @-> ptr t @-> returning Status.t)
     let release = foreign "xla_computation_free" (t @-> returning void)

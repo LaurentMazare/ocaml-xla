@@ -36,6 +36,7 @@ end
 
 module Op : sig
   type t
+  type computation
 
   val builder : t -> Builder.t
   val rank : t -> int
@@ -52,8 +53,14 @@ module Op : sig
     -> builder:Builder.t
     -> t
 
+  val r0_i32 : int -> builder:Builder.t -> t
+  val r0_i64 : int -> builder:Builder.t -> t
+  val r0_u32 : int -> builder:Builder.t -> t
+  val r0_u64 : int -> builder:Builder.t -> t
   val r0_f32 : float -> builder:Builder.t -> t
   val r0_f64 : float -> builder:Builder.t -> t
+  val min_value : element_type:Element_type.t -> builder:Builder.t -> t
+  val max_value : element_type:Element_type.t -> builder:Builder.t -> t
 
   (* Unary. *)
   val not_ : t -> t
@@ -138,10 +145,12 @@ module Op : sig
     -> set_index_vector_dim:int option
     -> slice_sizes:int list
     -> t
+
+  val reduce : t -> init:t -> f:computation -> dims:int list -> keep_dims:bool -> t
 end
 
 module Computation : sig
-  type t
+  type t = Op.computation
 
   val name : t -> string
   val build : root:Op.t -> t

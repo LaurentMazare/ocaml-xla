@@ -2,6 +2,8 @@ open! Base
 open! Import
 module CArray = Ctypes.CArray
 
+let carray_i64 v = List.map v ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t
+
 let _add_compact =
   match Sys.getenv "OCAML_XLA_ADD_COMPACT" with
   | None | Some "false" | Some "0" -> false
@@ -57,7 +59,7 @@ module Literal = struct
     ptr
 
   let create ~element_type ~dims =
-    let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let dims = carray_i64 dims in
     let t =
       W.Literal.create_from_shape
         (Element_type.to_c_int element_type)
@@ -70,7 +72,7 @@ module Literal = struct
   let clone t = W.Literal.clone t |> of_ptr
 
   let reshape t ~dims =
-    let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let dims = carray_i64 dims in
     let ptr = Ctypes.(allocate_n (ptr W.Literal.struct_) ~count:1) in
     let status =
       W.Literal.reshape
@@ -141,12 +143,7 @@ module Literal = struct
       | Float64 -> F64
       | _ba_kind -> failwith_s [%message "unsupported bigarray type"]
     in
-    let dims =
-      Bigarray.Genarray.dims src
-      |> Array.to_list
-      |> List.map ~f:Int64.of_int
-      |> CArray.of_list Ctypes.int64_t
-    in
+    let dims = Bigarray.Genarray.dims src |> Array.to_list |> carray_i64 in
     let t =
       W.Literal.create_from_shape_and_data
         (Element_type.to_c_int element_type)
@@ -166,34 +163,19 @@ module Op = struct
     ; builder : Builder.t
     }
 
+  type computation = W.Computation.t
+
   let of_ptr ptr ~builder =
     if Ctypes.is_null ptr then failwith "null Op pointer";
     Caml.Gc.finalise W.Op.release ptr;
     Builder.current_status builder |> Or_error.ok_exn;
     { ptr; builder }
 
-  let dimensions_size t ~dim_index =
-    W.Op.dimensions_size t.ptr (Int64.of_int_exn dim_index) |> of_ptr ~builder:t.builder
-
-  let element_type t =
-    let ptr = Ctypes.(allocate_n int ~count:1) in
-    let status = W.Op.get_element_type t.builder t.ptr ptr in
-    Status.ok_exn status;
-    Ctypes.( !@ ) ptr |> Element_type.of_c_int
-
   let rank t =
     let ptr = Ctypes.(allocate_n int ~count:1) in
     let status = W.Op.get_dimensions_size t.builder t.ptr ptr in
     Status.ok_exn status;
     Ctypes.( !@ ) ptr
-
-  let dims t =
-    let rank = rank t in
-    let ptr = Ctypes.(allocate_n size_t ~count:rank) in
-    let status = W.Op.get_dimensions t.builder t.ptr ptr in
-    Status.ok_exn status;
-    List.init rank ~f:(fun i ->
-      Ctypes.( +@ ) ptr i |> Ctypes.( !@ ) |> Unsigned.Size_t.to_int)
 
   let normalize_index ~rank ~dim_index =
     if 0 <= dim_index && dim_index < rank
@@ -206,6 +188,25 @@ module Op = struct
     let rank = rank t in
     List.map dim_indexes ~f:(fun dim_index ->
       normalize_index ~rank ~dim_index |> Int64.of_int_exn)
+
+  let dimensions_size t ~dim_index =
+    let rank = rank t in
+    let dim_index = normalize_index ~rank ~dim_index in
+    W.Op.dimensions_size t.ptr (Int64.of_int_exn dim_index) |> of_ptr ~builder:t.builder
+
+  let element_type t =
+    let ptr = Ctypes.(allocate_n int ~count:1) in
+    let status = W.Op.get_element_type t.builder t.ptr ptr in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> Element_type.of_c_int
+
+  let dims t =
+    let rank = rank t in
+    let ptr = Ctypes.(allocate_n size_t ~count:rank) in
+    let status = W.Op.get_dimensions t.builder t.ptr ptr in
+    Status.ok_exn status;
+    List.init rank ~f:(fun i ->
+      Ctypes.( +@ ) ptr i |> Ctypes.( !@ ) |> Unsigned.Size_t.to_int)
 
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
 
@@ -275,14 +276,29 @@ module Op = struct
   let select t1 t2 t3 = W.Op.select t1.ptr t2.ptr t3.ptr |> of_ptr ~builder:t1.builder
   let einsum1 t s = W.Op.einsum1 t.ptr s |> of_ptr ~builder:t.builder
   let einsum2 t1 t2 s = W.Op.einsum2 t1.ptr t2.ptr s |> of_ptr ~builder:t1.builder
+  let r0_i32 v ~builder = W.Op.r0_i32 builder (Int32.of_int_exn v) |> of_ptr ~builder
+  let r0_i64 v ~builder = W.Op.r0_i64 builder (Int64.of_int_exn v) |> of_ptr ~builder
+
+  let r0_u32 v ~builder =
+    W.Op.r0_u32 builder (Unsigned.UInt32.of_int v) |> of_ptr ~builder
+
+  let r0_u64 v ~builder =
+    W.Op.r0_u64 builder (Unsigned.UInt64.of_int v) |> of_ptr ~builder
+
   let r0_f32 v ~builder = W.Op.r0_f32 builder v |> of_ptr ~builder
   let r0_f64 v ~builder = W.Op.r0_f64 builder v |> of_ptr ~builder
 
+  let min_value ~element_type ~builder =
+    W.Op.min_value builder (Element_type.to_c_int element_type) |> of_ptr ~builder
+
+  let max_value ~element_type ~builder =
+    W.Op.max_value builder (Element_type.to_c_int element_type) |> of_ptr ~builder
+
   let dot_general t1 t2 ~lhs_c ~rhs_c ~lhs_b ~rhs_b =
-    let lhs_c = List.map lhs_c ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
-    let rhs_c = List.map rhs_c ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
-    let lhs_b = List.map lhs_b ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
-    let rhs_b = List.map rhs_b ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let lhs_c = carray_i64 lhs_c in
+    let rhs_c = carray_i64 rhs_c in
+    let lhs_b = carray_i64 lhs_b in
+    let rhs_b = carray_i64 rhs_b in
     let t =
       W.Op.dot_general
         t1.ptr
@@ -312,14 +328,13 @@ module Op = struct
     ~set_index_vector_dim
     ~slice_sizes
     =
-    let carray v = List.map v ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
-    let offset_dims = carray offset_dims in
-    let collapsed_slice_dims = carray collapsed_slice_dims in
-    let start_index_map = carray start_index_map in
+    let offset_dims = carray_i64 offset_dims in
+    let collapsed_slice_dims = carray_i64 collapsed_slice_dims in
+    let start_index_map = carray_i64 start_index_map in
     let set_index = Ctypes.(allocate_n int64_t ~count:1) in
     Option.iter set_index_vector_dim ~f:(fun i ->
       Ctypes.( <-@ ) set_index (Int64.of_int_exn i));
-    let slice_sizes = carray slice_sizes in
+    let slice_sizes = carray_i64 slice_sizes in
     let t =
       W.Op.gather
         t.ptr
@@ -345,7 +360,7 @@ module Op = struct
     t
 
   let reshape t ~dims =
-    let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let dims = carray_i64 dims in
     let ptr =
       W.Op.reshape
         t.ptr
@@ -355,8 +370,35 @@ module Op = struct
     keep_alive dims;
     of_ptr ptr ~builder:t.builder
 
+  let maybe_keep_dims t ~res ~reduce_dims ~keep_dims =
+    if keep_dims && not (List.is_empty reduce_dims)
+    then (
+      let dims =
+        dims t
+        |> List.mapi ~f:(fun i d ->
+             if List.mem reduce_dims i ~equal:Int.equal then 1 else d)
+      in
+      reshape res ~dims)
+    else res
+
+  let reduce t ~init ~f ~dims ~keep_dims =
+    let rank = rank t in
+    let dims = List.map dims ~f:(fun dim_index -> normalize_index ~rank ~dim_index) in
+    let dims_ = carray_i64 dims in
+    let res =
+      W.Op.reduce
+        t.ptr
+        init.ptr
+        f
+        (CArray.start dims_)
+        (CArray.length dims_ |> Unsigned.Size_t.of_int)
+      |> of_ptr ~builder:t.builder
+    in
+    keep_alive dims_;
+    maybe_keep_dims t ~res ~reduce_dims:dims ~keep_dims
+
   let broadcast t ~dims =
-    let dims = List.map dims ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t in
+    let dims = carray_i64 dims in
     let ptr =
       W.Op.broadcast
         t.ptr
