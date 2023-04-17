@@ -133,8 +133,8 @@ module Op : sig
   val einsum2 : t -> t -> string -> t
 
   (* Ternary *)
-  val clamp : t -> t -> t -> t
-  val select : t -> t -> t -> t
+  val clamp : t -> min:t -> max:t -> t
+  val select : mask:t -> on_true:t -> on_false:t -> t
 
   val gather
     :  t
@@ -144,6 +144,14 @@ module Op : sig
     -> start_index_map:int list
     -> set_index_vector_dim:int option
     -> slice_sizes:int list
+    -> t
+
+  val slice_in_dim
+    :  ?stride:int
+    -> ?start_index:int
+    -> t
+    -> stop_index:int
+    -> dim:int
     -> t
 
   val reduce : t -> init:t -> f:computation -> dims:int list -> keep_dims:bool -> t

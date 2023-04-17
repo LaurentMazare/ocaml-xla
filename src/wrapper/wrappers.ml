@@ -272,8 +272,11 @@ module Op = struct
   let gt t1 t2 = W.Op.gt t1.ptr t2.ptr |> of_ptr ~builder:t1.builder
   let le t1 t2 = W.Op.le t1.ptr t2.ptr |> of_ptr ~builder:t1.builder
   let lt t1 t2 = W.Op.lt t1.ptr t2.ptr |> of_ptr ~builder:t1.builder
-  let clamp t1 t2 t3 = W.Op.clamp t1.ptr t2.ptr t3.ptr |> of_ptr ~builder:t1.builder
-  let select t1 t2 t3 = W.Op.select t1.ptr t2.ptr t3.ptr |> of_ptr ~builder:t1.builder
+  let clamp t1 ~min ~max = W.Op.clamp t1.ptr min.ptr max.ptr |> of_ptr ~builder:t1.builder
+
+  let select ~mask ~on_true ~on_false =
+    W.Op.select mask.ptr on_true.ptr on_false.ptr |> of_ptr ~builder:mask.builder
+
   let einsum1 t s = W.Op.einsum1 t.ptr s |> of_ptr ~builder:t.builder
   let einsum2 t1 t2 s = W.Op.einsum2 t1.ptr t2.ptr s |> of_ptr ~builder:t1.builder
   let r0_i32 v ~builder = W.Op.r0_i32 builder (Int32.of_int_exn v) |> of_ptr ~builder
@@ -293,6 +296,15 @@ module Op = struct
 
   let max_value ~element_type ~builder =
     W.Op.max_value builder (Element_type.to_c_int element_type) |> of_ptr ~builder
+
+  let slice_in_dim ?(stride = 1) ?(start_index = 0) t ~stop_index ~dim =
+    W.Op.slice_in_dim
+      t.ptr
+      (Int64.of_int_exn start_index)
+      (Int64.of_int_exn stop_index)
+      (Int64.of_int_exn stride)
+      (Int64.of_int_exn dim)
+    |> of_ptr ~builder:t.builder
 
   let dot_general t1 t2 ~lhs_c ~rhs_c ~lhs_b ~rhs_b =
     let lhs_c = carray_i64 lhs_c in

@@ -83,3 +83,12 @@ let softmax t ~dim_index =
   let unnormalized = sub t max |> exp in
   let sum = reduce_sum unnormalized ~dims:[ dim_index ] ~keep_dims:true in
   div unnormalized sum
+
+let layer_norm t ~dim_index ~scale ~bias =
+  let builder = builder t in
+  let eps = r0_f32 1e-5 ~builder |> convert ~element_type:(element_type t) in
+  let mean = reduce_mean t ~dims:[ dim_index ] ~keep_dims:true in
+  let mean2 = reduce_mean (mul t t) ~dims:[ dim_index ] ~keep_dims:true in
+  let var = sub mean2 (mul mean mean) in
+  let s = add var eps |> rsqrt in
+  add bias (mul s (sub t mean) |> mul scale)

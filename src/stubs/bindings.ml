@@ -232,6 +232,11 @@ module C (F : Cstubs.FOREIGN) = struct
     let r0_f64 = foreign "constant_r0_double" (Builder.t @-> double @-> returning t)
     let min_value = foreign "op_min_value" (Builder.t @-> int @-> returning t)
     let max_value = foreign "op_max_value" (Builder.t @-> int @-> returning t)
+
+    let slice_in_dim =
+      foreign
+        "op_slice_in_dim"
+        (t @-> int64_t @-> int64_t @-> int64_t @-> int64_t @-> returning t)
   end
 
   module Computation = struct
