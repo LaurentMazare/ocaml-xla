@@ -32,6 +32,12 @@ module Literal : sig
   val of_bigarray : (_, _, Bigarray.c_layout) Bigarray.Genarray.t -> t
   val copy_from_bigarray : t -> src:(_, _, Bigarray.c_layout) Bigarray.Genarray.t -> unit
   val copy_to_bigarray : t -> dst:(_, _, Bigarray.c_layout) Bigarray.Genarray.t -> unit
+  val r0_i32 : int -> t
+  val r0_i64 : int -> t
+  val r0_u32 : int -> t
+  val r0_u64 : int -> t
+  val r0_f32 : float -> t
+  val r0_f64 : float -> t
 end
 
 module Op : sig

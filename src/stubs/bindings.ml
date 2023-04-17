@@ -74,6 +74,12 @@ module C (F : Cstubs.FOREIGN) = struct
     let element_count = foreign "literal_element_count" (t @-> returning int64_t)
     let size_bytes = foreign "literal_size_bytes" (t @-> returning int64_t)
     let release = foreign "literal_free" (t @-> returning void)
+    let r0_i32 = foreign "create_r0_int32_t" (int32_t @-> returning t)
+    let r0_i64 = foreign "create_r0_int64_t" (int64_t @-> returning t)
+    let r0_u32 = foreign "create_r0_uint32_t" (uint32_t @-> returning t)
+    let r0_u64 = foreign "create_r0_uint64_t" (uint64_t @-> returning t)
+    let r0_f32 = foreign "create_r0_float" (float @-> returning t)
+    let r0_f64 = foreign "create_r0_double" (double @-> returning t)
   end
 
   module Computation0 = struct

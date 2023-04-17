@@ -220,8 +220,10 @@ module Gpt = struct
       | dims -> [%message "expected 2 dims" (dims : int list)] |> failwith_s
     in
     let pos =
-      (* TODO: Use the proper values. *)
-      Literal.create ~element_type:S32 ~dims:[ t_sz ]
+      Array.init t_sz ~f:Int64.of_int_exn
+      |> Bigarray.Array1.of_array Int64 C_layout
+      |> Bigarray.genarray_of_array1
+      |> Literal.of_bigarray
       |> Op.constant ~builder
       |> Op.reshape ~dims:[ 1; t_sz ]
     in
@@ -252,15 +254,20 @@ let gpt_computation (config : Config.t) ~b_sz =
   Xla.Computation.build ~root
 
 let () =
+  let b_sz = 2 in
   let client =
     if use_cpu
     then Xla.Client.cpu ()
     else Xla.Client.gpu ~memory_fraction:0.95 ~preallocate:false
   in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
-  Stdio.printf "Platform version: %s\n" (Xla.Client.platform_version client);
-  let gpt2 = gpt_computation Config.gpt2 ~b_sz:2 in
-  let _exe = Xla.Executable.compile client gpt2 in
+  Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
+  let gpt2 = gpt_computation Config.gpt2 ~b_sz in
+  let exe = Xla.Executable.compile client gpt2 in
+  Stdio.printf "Done with the compilation\n%!";
   for i = 1 to num_samples do
-    Stdio.printf "%d\n" i
+    let input = Literal.create ~element_type:F32 ~dims:[ b_sz; Config.gpt2.block_size ] in
+    let buffers = Xla.Executable.execute exe [ input ] in
+    let buffers = buffers.(0) in
+    Stdio.printf "%d Got %d buffers\n%!" i (Array.length buffers)
   done

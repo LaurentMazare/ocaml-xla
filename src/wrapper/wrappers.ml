@@ -155,6 +155,13 @@ module Literal = struct
     keep_alive src;
     keep_alive dims;
     t
+
+  let r0_i32 v = W.Literal.r0_i32 (Int32.of_int_exn v)
+  let r0_i64 v = W.Literal.r0_i64 (Int64.of_int_exn v)
+  let r0_u32 v = W.Literal.r0_u32 (Unsigned.UInt32.of_int v)
+  let r0_u64 v = W.Literal.r0_u64 (Unsigned.UInt64.of_int v)
+  let r0_f32 = W.Literal.r0_f32
+  let r0_f64 = W.Literal.r0_f64
 end
 
 module Op = struct
