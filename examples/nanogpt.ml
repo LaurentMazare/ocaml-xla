@@ -383,6 +383,4 @@ let () =
     time_it "Sampled" ~f:(fun () ->
       let sample = sample ~tokenizer ~exe in
       Stdio.printf "%d ----\n%s\n----\n%!" i sample)
-  done;
-  (* TODO: ensure that the client stays alive. *)
-  Xla.Import.keep_alive client
+  done

@@ -586,18 +586,21 @@ module PjRtBuffer = struct
 end
 
 module PjRtLoadedExecutable = struct
-  type t = W.PjRtLoadedExecutable.t
+  type t =
+    { ptr : W.PjRtLoadedExecutable.t
+    ; client : PjRtClient.t
+    }
 
-  let of_ptr ptr =
+  let of_ptr ptr ~client =
     if Ctypes.is_null ptr then failwith "null PjRtLoadedExecutable pointer";
     Caml.Gc.finalise W.PjRtLoadedExecutable.release ptr;
-    ptr
+    { ptr; client }
 
   let compile client computation =
     let ptr = Ctypes.(allocate_n (ptr W.PjRtLoadedExecutable.struct_) ~count:1) in
     let status = W.PjRtLoadedExecutable.compile client computation ptr in
     Status.ok_exn status;
-    Ctypes.( !@ ) ptr |> of_ptr
+    Ctypes.( !@ ) ptr |> of_ptr ~client
 
   let execute_results_to_list ptr =
     let ptr = Ctypes.( !@ ) ptr in
@@ -623,7 +626,7 @@ module PjRtLoadedExecutable = struct
     let args = CArray.of_list W.Literal.t args in
     let ptr = Ctypes.(allocate_n (ptr (ptr (ptr W.PjRtBuffer.struct_))) ~count:1) in
     let status =
-      W.PjRtLoadedExecutable.execute t (CArray.start args) (CArray.length args) ptr
+      W.PjRtLoadedExecutable.execute t.ptr (CArray.start args) (CArray.length args) ptr
     in
     keep_alive args;
     Status.ok_exn status;
