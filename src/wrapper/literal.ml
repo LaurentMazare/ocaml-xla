@@ -10,3 +10,5 @@ let to_bigarray (type a b) t (kind : (a, b) Bigarray.kind) =
   let dst = Bigarray.Genarray.create kind C_layout dims in
   copy_to_bigarray t ~dst;
   dst
+
+let dims t = shape t |> Shape.dimensions

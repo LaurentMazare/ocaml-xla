@@ -21,7 +21,7 @@ type t =
   | Tuple
   | OpaqueType
   | Token
-[@@deriving sexp]
+[@@deriving sexp, compare, equal]
 
 let to_c_int = function
   | Invalid -> 0

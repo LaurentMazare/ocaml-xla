@@ -18,7 +18,7 @@ type t =
   | Tuple
   | OpaqueType
   | Token
-[@@deriving sexp]
+[@@deriving sexp, compare, equal]
 
 val of_c_int : int -> t
 val to_c_int : t -> int

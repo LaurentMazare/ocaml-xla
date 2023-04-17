@@ -5,7 +5,7 @@
   (foreign_stubs (language c) (names xla_stubs_generated) (flags :standard  (:include c_flags.sexp)))
   (c_library_flags :standard (:include c_library_flags.sexp) -lpthread -lm -ldl)
   (libraries base bigarray camlzip ctypes ctypes.foreign ctypes.stubs stdio)
-  (preprocess (pps ppx_expect ppx_sexp_conv ppx_sexp_message)))
+  (preprocess (pps ppx_expect ppx_sexp_conv ppx_sexp_message ppx_compare)))
 
 (rule
   (targets c_flags.sexp c_library_flags.sexp)

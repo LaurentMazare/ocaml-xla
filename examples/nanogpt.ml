@@ -8,6 +8,7 @@
 *)
 
 open! Base
+module Element_type = Xla.Element_type
 module Literal = Xla.Literal
 module Op = Xla.Op
 
@@ -15,6 +16,51 @@ let temperature = 0.8
 let use_cpu = true
 let num_samples = 10
 let failwith_s s = Sexp.to_string s |> failwith
+
+module VarStore : sig
+  type t
+
+  val create_npz : string -> t
+  val get : t -> string -> element_type:Element_type.t -> dims:int list -> Literal.t
+  val sub : t -> string -> t
+end = struct
+  type t =
+    { literals : (string, Literal.t) Hashtbl.t
+    ; rev_path : string list
+    }
+
+  let create_npz filename =
+    let literals = Xla.Npy.Npz.read_all filename in
+    { literals; rev_path = [] }
+
+  let sub t dir_name = { literals = t.literals; rev_path = dir_name :: t.rev_path }
+
+  let get t name ~element_type ~dims =
+    let name = List.rev (name :: t.rev_path) |> String.concat ~sep:"." in
+    match Hashtbl.find t.literals name with
+    | None ->
+      [%message
+        "tensor not found" (name : string) (Hashtbl.keys t.literals : string list)]
+      |> failwith_s
+    | Some literal ->
+      let shape = Literal.shape literal in
+      let read_element_type = Xla.Shape.element_type shape in
+      let read_dims = Xla.Shape.dimensions shape in
+      if not (Element_type.equal element_type read_element_type)
+      then
+        [%message
+          "element_type mismatch"
+            (name : string)
+            (element_type : Element_type.t)
+            (read_element_type : Element_type.t)]
+        |> failwith_s;
+      if Caml.( <> ) dims read_dims
+      then
+        [%message
+          "dims mismatch" (name : string) (dims : int list) (read_dims : int list)]
+        |> failwith_s;
+      literal
+end
 
 let time_it str ~f =
   let start_time = Unix.gettimeofday () in
@@ -46,8 +92,10 @@ let new_gelu xs =
 module Embedding = struct
   type t = { embeddings : Literal.t }
 
-  let create ~vocab_size ~n_embd =
-    let embeddings = Literal.create ~element_type:F32 ~dims:[ vocab_size; n_embd ] in
+  let create vs ~vocab_size ~n_embd =
+    let embeddings =
+      VarStore.get vs "weight" ~element_type:F32 ~dims:[ vocab_size; n_embd ]
+    in
     { embeddings }
 
   let forward t xs =
@@ -62,9 +110,9 @@ module LayerNorm = struct
     ; dims : int list
     }
 
-  let create ~size =
-    let scale = Literal.create ~element_type:F32 ~dims:[ size ] in
-    let bias = Literal.create ~element_type:F32 ~dims:[ size ] in
+  let create vs ~size =
+    let scale = VarStore.get vs "weight" ~element_type:F32 ~dims:[ size ] in
+    let bias = VarStore.get vs "bias" ~element_type:F32 ~dims:[ size ] in
     { scale; bias; dims = [ 1; 1; size ] }
 
   let forward t xs =
@@ -81,11 +129,11 @@ module Linear = struct
     ; dims : int list
     }
 
-  let create ~in_size ~out_size ~with_bias =
-    let ws = Literal.create ~element_type:F32 ~dims:[ in_size; out_size ] in
+  let create vs ~in_size ~out_size ~with_bias =
+    let ws = VarStore.get vs "weight" ~element_type:F32 ~dims:[ in_size; out_size ] in
     let bs =
       if with_bias
-      then Literal.create ~element_type:F32 ~dims:[ out_size ] |> Option.some
+      then VarStore.get vs "bias" ~element_type:F32 ~dims:[ out_size ] |> Option.some
       else None
     in
     { ws; bs; dims = [ 1; 1; out_size ] }
@@ -110,9 +158,14 @@ module CausalSelfAttention = struct
     ; n_embd : int
     }
 
-  let create ~n_head ~n_embd =
-    let c_attn = Linear.create ~in_size:n_embd ~out_size:(3 * n_embd) ~with_bias:true in
-    let c_proj = Linear.create ~in_size:n_embd ~out_size:n_embd ~with_bias:true in
+  let create vs ~n_head ~n_embd =
+    let sub = VarStore.sub vs in
+    let c_attn =
+      Linear.create (sub "c_attn") ~in_size:n_embd ~out_size:(3 * n_embd) ~with_bias:true
+    in
+    let c_proj =
+      Linear.create (sub "c_proj") ~in_size:n_embd ~out_size:n_embd ~with_bias:true
+    in
     { c_attn; c_proj; n_head; n_embd }
 
   let masked_fill ~mask ~on_true ~on_false =
@@ -168,9 +221,14 @@ module Mlp = struct
     ; c_proj : Linear.t
     }
 
-  let create ~n_embd =
-    let c_fc = Linear.create ~in_size:n_embd ~out_size:(4 * n_embd) ~with_bias:true in
-    let c_proj = Linear.create ~in_size:(4 * n_embd) ~out_size:n_embd ~with_bias:true in
+  let create vs ~n_embd =
+    let sub = VarStore.sub vs in
+    let c_fc =
+      Linear.create (sub "c_fc") ~in_size:n_embd ~out_size:(4 * n_embd) ~with_bias:true
+    in
+    let c_proj =
+      Linear.create (sub "c_proj") ~in_size:(4 * n_embd) ~out_size:n_embd ~with_bias:true
+    in
     { c_fc; c_proj }
 
   let forward t xs = Linear.forward t.c_fc xs |> new_gelu |> Linear.forward t.c_proj
@@ -184,11 +242,12 @@ module Block = struct
     ; mlp : Mlp.t
     }
 
-  let create ~n_head ~n_embd =
-    let ln1 = LayerNorm.create ~size:n_embd in
-    let attn = CausalSelfAttention.create ~n_head ~n_embd in
-    let ln2 = LayerNorm.create ~size:n_embd in
-    let mlp = Mlp.create ~n_embd in
+  let create vs ~n_head ~n_embd =
+    let sub = VarStore.sub vs in
+    let ln1 = LayerNorm.create (sub "ln_1") ~size:n_embd in
+    let attn = CausalSelfAttention.create (sub "attn") ~n_head ~n_embd in
+    let ln2 = LayerNorm.create (sub "ln_2") ~size:n_embd in
+    let mlp = Mlp.create (sub "mlp") ~n_embd in
     { ln1; attn; ln2; mlp }
 
   let forward t xs =
@@ -209,13 +268,22 @@ module Gpt = struct
     ; ln_f : LayerNorm.t
     }
 
-  let create config =
+  let create vs config =
+    let sub = VarStore.sub vs in
+    let transformer_vs = sub "transformer" in
+    let sub_t = VarStore.sub transformer_vs in
     let { Config.n_embd; n_head; vocab_size; block_size; n_layer; _ } = config in
-    let lm_head = Linear.create ~in_size:n_embd ~out_size:vocab_size ~with_bias:false in
-    let wte = Embedding.create ~vocab_size ~n_embd in
-    let wpe = Embedding.create ~vocab_size:block_size ~n_embd in
-    let blocks = List.init n_layer ~f:(fun _i -> Block.create ~n_head ~n_embd) in
-    let ln_f = LayerNorm.create ~size:n_embd in
+    let lm_head =
+      Linear.create (sub "lm_head") ~in_size:n_embd ~out_size:vocab_size ~with_bias:false
+    in
+    let wte = Embedding.create (sub_t "wte") ~vocab_size ~n_embd in
+    let wpe = Embedding.create (sub_t "wpe") ~vocab_size:block_size ~n_embd in
+    let blocks =
+      let vs = sub_t "h" in
+      let vs i = VarStore.sub vs (Int.to_string i) in
+      List.init n_layer ~f:(fun i -> Block.create (vs i) ~n_head ~n_embd)
+    in
+    let ln_f = LayerNorm.create (sub_t "ln_f") ~size:n_embd in
     { lm_head; wte; wpe; blocks; ln_f }
 
   let forward t xs =
@@ -242,8 +310,8 @@ module Gpt = struct
     |> Linear.forward t.lm_head
 end
 
-let gpt_computation (config : Config.t) ~b_sz =
-  let gpt = Gpt.create config in
+let gpt_computation vs config ~b_sz =
+  let gpt = Gpt.create vs config in
   let builder = Xla.Builder.create ~name:"gpt" in
   let input =
     Op.parameter
@@ -268,12 +336,9 @@ let () =
   in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
   Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
-  let weights =
-    time_it "Read weight file" ~f:(fun () -> Xla.Npy.Npz.read_all "gpt2.npz")
-  in
-  Hashtbl.iter_keys weights ~f:(fun name -> Stdio.printf "Literal %s\n%!" name);
+  let vs = time_it "Read weight file" ~f:(fun () -> VarStore.create_npz "gpt2.npz") in
   let gpt2 =
-    time_it "Generated the op" ~f:(fun () -> gpt_computation Config.gpt2 ~b_sz)
+    time_it "Generated the op" ~f:(fun () -> gpt_computation vs Config.gpt2 ~b_sz)
   in
   let exe =
     time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client gpt2)
