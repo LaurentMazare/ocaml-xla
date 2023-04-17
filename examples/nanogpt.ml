@@ -353,14 +353,12 @@ let sample ~tokenizer ~exe =
       sum_p := !sum_p +. probabilities.{i}
     done;
     let p = ref (Random.float !sum_p) in
-    Stdio.printf ">>> %f %f\n%!" !sum_p !p;
     let token = ref None in
     for i = 0 to vocab_size - 1 do
       p := !p -. probabilities.{i};
       if Float.is_non_positive !p && Option.is_none !token then token := Some i
     done;
     let token = Option.value !token ~default:0 in
-    Stdio.printf ">>> %f %f %d\n%!" !sum_p !p token;
     Queue.enqueue tokens token
   done;
   Queue.to_list tokens |> T.decode tokenizer
