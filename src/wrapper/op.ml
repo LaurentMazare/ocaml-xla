@@ -41,8 +41,8 @@ let reduce_sum t ~dims ~keep_dims =
 let reduce_mean t ~dims ~keep_dims =
   let builder = builder t in
   let scale =
-    List.fold dims ~init:(r0_u64 1 ~builder) ~f:(fun acc dim_index ->
-      dimensions_size t ~dim_index |> convert ~element_type:U64 |> mul acc)
+    List.fold dims ~init:(r0_i32 1 ~builder) ~f:(fun acc dim_index ->
+      dimensions_size t ~dim_index |> mul acc)
   in
   div (reduce_sum t ~dims ~keep_dims) (convert scale ~element_type:(element_type t))
 

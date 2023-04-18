@@ -2,9 +2,8 @@
    This only contains the inference part as the xla crate does not support backpropagation.
    No dropout as this is inference only.
 
-   This example requires the following tokenizer config files:
+   This example requires the following tokenizer config file:
    https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/vocab.bpe
-   https://openaipublic.blob.core.windows.net/gpt-2/encodings/main/encoder.json
    And the gpt2.npz weight file that can be extracted by running the get_nanogpt_weights.py script.
 *)
 
@@ -253,12 +252,10 @@ module Block = struct
     { ln1; attn; ln2; mlp }
 
   let forward t xs =
-    LayerNorm.forward t.ln1 xs
-    |> CausalSelfAttention.forward t.attn
-    |> Op.add xs
-    |> LayerNorm.forward t.ln2
-    |> Mlp.forward t.mlp
-    |> Op.add xs
+    let xs =
+      LayerNorm.forward t.ln1 xs |> CausalSelfAttention.forward t.attn |> Op.add xs
+    in
+    LayerNorm.forward t.ln2 xs |> Mlp.forward t.mlp |> Op.add xs
 end
 
 module Gpt = struct
@@ -337,7 +334,7 @@ let sample ~tokenizer ~exe =
   for _i = 1 to 20 do
     for idx = 0 to block_size - 1 do
       let tokens_index = Queue.length tokens - block_size + idx in
-      let token = if tokens_index < 0 then 198 else Queue.get tokens tokens_index in
+      let token = if tokens_index < 0 then 50256 else Queue.get tokens tokens_index in
       ba.{0, idx} <- Int32.of_int_exn token
     done;
     let ba = Bigarray.genarray_of_array2 ba in
@@ -364,7 +361,7 @@ let sample ~tokenizer ~exe =
   Queue.to_list tokens |> T.decode tokenizer
 
 let () =
-  let tokenizer = T.create ~vocab_filename:"encoder.json" ~merge_filename:"vocab.bpe" in
+  let tokenizer = T.create ~merge_filename:"vocab.bpe" in
   let client =
     if use_cpu
     then Xla.Client.cpu ()
