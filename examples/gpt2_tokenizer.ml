@@ -344,5 +344,38 @@ let create ~merge_filename =
   ; end_of_text_token
   }
 
-let encode _t _str = failwith "TODO"
+(* byte-level Byte-Pair-Encoding *)
+let bpe t str =
+  let rec loop words =
+    let rec best_pair words min_rank =
+      match words with
+      | [] | [ _ ] -> min_rank
+      | head1 :: (head2 :: _ as words) ->
+        let pair = head1, head2 in
+        let min_rank =
+          match min_rank, Map.find t.bpe_ranks pair with
+          | None, None -> None
+          | None, Some value -> Some (value, pair)
+          | Some (min_value, _), Some value when value < min_value -> Some (value, pair)
+          | (Some _ as some), (None | Some _) -> some
+        in
+        best_pair words min_rank
+    in
+    match best_pair words None with
+    | None -> words
+    | Some (_min_value, (word1, word2)) ->
+      let word12 = word1 ^ word2 in
+      let rec group words acc =
+        match words with
+        | [] -> List.rev acc
+        | [ last ] -> List.rev (last :: acc)
+        | head1 :: head2 :: tail when String.(head1 = word1 && head2 = word2) ->
+          group tail (word12 :: acc)
+        | head :: tail -> group tail (head :: acc)
+      in
+      group words [] |> loop
+  in
+  unicode_chars str |> loop |> List.map ~f:(Map.find_exn t.encoder)
+
+let encode t str = Re.matches t.re str |> List.concat_map ~f:(bpe t)
 let decode t ids = List.map ids ~f:(fun i -> t.decoder.(i)) |> String.concat ~sep:""
