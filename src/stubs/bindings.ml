@@ -281,6 +281,7 @@ module C (F : Cstubs.FOREIGN) = struct
     let gpu =
       foreign "pjrt_gpu_client_create" (ptr t @-> double @-> bool @-> returning Status.t)
 
+    let tpu = foreign "pjrt_tpu_client_create" (ptr t @-> int @-> returning Status.t)
     let device_count = foreign "pjrt_client_device_count" (t @-> returning int)
 
     let addressable_device_count =

@@ -186,6 +186,7 @@ module PjRtClient : sig
 
   val cpu : unit -> t
   val gpu : memory_fraction:float -> preallocate:bool -> t
+  val tpu : max_inflight_computations:int -> t
   val device_count : t -> int
   val devices : t -> PjRtDevice.t list
   val addressable_device_count : t -> int

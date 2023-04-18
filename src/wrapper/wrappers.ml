@@ -533,6 +533,12 @@ module PjRtClient = struct
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr
 
+  let tpu ~max_inflight_computations =
+    let ptr = Ctypes.(allocate_n (ptr W.PjRtClient.struct_) ~count:1) in
+    let status = W.PjRtClient.tpu ptr max_inflight_computations in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> of_ptr
+
   let device_count = W.PjRtClient.device_count
   let addressable_device_count = W.PjRtClient.addressable_device_count
 
