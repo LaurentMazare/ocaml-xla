@@ -22,7 +22,7 @@ let xla_flags () =
     let lib_dir =
       Caml.Sys.getenv_opt "DUNE_SOURCEROOT"
       |> Option.bind ~f:(fun prefix ->
-           let lib_dir = prefix /^ "xla-extension" in
+           let lib_dir = prefix /^ "xla_extension" in
            if file_exists lib_dir then Some lib_dir else None)
     in
     let lib_dir =

@@ -28,7 +28,7 @@ setup.log
 
 # Local OPAM switch
 _opam/
-xla-extension
+xla_extension*
 
 vocab.bpe
 encoder.json

@@ -14,9 +14,63 @@ module Op = Xla.Op
 module T = Gpt2_tokenizer
 
 let temperature = 0.8
-let use_cpu = true
+let use_gpu = true
 let num_samples = 10
+let sample_length = 100
 let failwith_s s = Sexp.to_string s |> failwith
+
+let start_prompt =
+  {|
+EDWARD:
+I wonder how our princely father 'scaped,
+Or whether he be 'scaped away or no
+From Clifford's and Northumberland's pursuit:
+Had he been ta'en, we should have heard the news;
+Had he been slain, we should have heard the news;
+Or had he 'scaped, methinks we should have heard
+The happy tidings of his good escape.
+How fares my brother? why is he so sad?
+
+RICHARD:
+I cannot joy, until I be resolved
+Where our right valiant father is become.
+I saw him in the battle range about;
+And watch'd him how he singled Clifford forth.
+Methought he bore him in the thickest troop
+As doth a lion in a herd of neat;
+Or as a bear, encompass'd round with dogs,
+Who having pinch'd a few and made them cry,
+The rest stand all aloof, and bark at him.
+So fared our father with his enemies;
+So fled his enemies my warlike father:
+Methinks, 'tis prize enough to be his son.
+See how the morning opes her golden gates,
+And takes her farewell of the glorious sun!
+How well resembles it the prime of youth,
+Trimm'd like a younker prancing to his love!
+
+EDWARD:
+Dazzle mine eyes, or do I see three suns?
+
+RICHARD:
+Three glorious suns, each one a perfect sun;
+Not separated with the racking clouds,
+But sever'd in a pale clear-shining sky.
+See, see! they join, embrace, and seem to kiss,
+As if they vow'd some league inviolable:
+Now are they but one lamp, one light, one sun.
+In this the heaven figures some event.
+
+EDWARD:
+'Tis wondrous strange, the like yet never heard of.
+I think it cites us, brother, to the field,
+That we, the sons of brave Plantagenet,
+Each one already blazing by our meeds,
+Should notwithstanding join our lights together
+And over-shine the earth as this the world.
+Whate'er it bodes, henceforward will I bear
+Upon my target three fair-shining suns.
+|}
 
 module VarStore : sig
   type t
@@ -326,15 +380,21 @@ let gpt_computation vs config ~b_sz =
   in
   Xla.Computation.build ~root
 
-let sample ~tokenizer ~exe =
+let sample ~start_tokens ~tokenizer ~exe =
   let block_size = Config.gpt2.block_size in
   let vocab_size = Config.gpt2.vocab_size in
   let tokens = Queue.create () in
   let ba = Bigarray.Array2.create Int32 C_layout 1 block_size in
-  for _i = 1 to 20 do
+  for _i = 1 to sample_length do
     for idx = 0 to block_size - 1 do
       let tokens_index = Queue.length tokens - block_size + idx in
-      let token = if tokens_index < 0 then 50256 else Queue.get tokens tokens_index in
+      let token =
+        if tokens_index < 0
+        then (
+          let tokens_index = Array.length start_tokens + tokens_index in
+          if tokens_index < 0 then 50256 else start_tokens.(tokens_index))
+        else Queue.get tokens tokens_index
+      in
       ba.{0, idx} <- Int32.of_int_exn token
     done;
     let ba = Bigarray.genarray_of_array2 ba in
@@ -362,10 +422,11 @@ let sample ~tokenizer ~exe =
 
 let () =
   let tokenizer = T.create ~merge_filename:"vocab.bpe" in
+  let start_tokens = T.encode tokenizer start_prompt |> Array.of_list in
   let client =
-    if use_cpu
-    then Xla.Client.cpu ()
-    else Xla.Client.gpu ~memory_fraction:0.95 ~preallocate:false
+    if use_gpu
+    then Xla.Client.gpu ~memory_fraction:0.95 ~preallocate:false
+    else Xla.Client.cpu ()
   in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
   Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
@@ -378,6 +439,6 @@ let () =
   in
   for i = 1 to num_samples do
     time_it "Sampled" ~f:(fun () ->
-      let sample = sample ~tokenizer ~exe in
+      let sample = sample ~start_tokens ~tokenizer ~exe in
       Stdio.printf "%d ----\n%s\n----\n%!" i sample)
   done
