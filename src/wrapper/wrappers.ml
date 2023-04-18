@@ -555,12 +555,15 @@ module PjRtClient = struct
 end
 
 module PjRtBuffer = struct
-  type t = W.PjRtBuffer.t
+  type t =
+    { ptr : W.PjRtBuffer.t
+    ; client : PjRtClient.t
+    }
 
-  let of_ptr ptr =
+  let of_ptr ptr ~client =
     if Ctypes.is_null ptr then failwith "null PjRtBuffer pointer";
     Caml.Gc.finalise W.PjRtBuffer.release ptr;
-    ptr
+    { ptr; client }
 
   let of_host_literal literal ~device =
     let ptr = Ctypes.(allocate_n (ptr W.PjRtBuffer.struct_) ~count:1) in
@@ -568,19 +571,19 @@ module PjRtBuffer = struct
       W.PjRtBuffer.from_host_literal device.PjRtDevice.client device.ptr literal ptr
     in
     Status.ok_exn status;
-    Ctypes.( !@ ) ptr |> of_ptr
+    Ctypes.( !@ ) ptr |> of_ptr ~client:device.client
 
   let copy_to_device t ~device =
     let ptr = Ctypes.(allocate_n (ptr W.PjRtBuffer.struct_) ~count:1) in
-    let status = W.PjRtBuffer.copy_to_device t device.PjRtDevice.ptr ptr in
+    let status = W.PjRtBuffer.copy_to_device t.ptr device.PjRtDevice.ptr ptr in
     Status.ok_exn status;
-    Ctypes.( !@ ) ptr |> of_ptr
+    Ctypes.( !@ ) ptr |> of_ptr ~client:device.client
 
-  let on_device_shape t = W.PjRtBuffer.on_device_shape t |> Shape.of_ptr
+  let on_device_shape t = W.PjRtBuffer.on_device_shape t.ptr |> Shape.of_ptr
 
   let to_literal_sync t =
     let ptr = Ctypes.(allocate_n (ptr W.Literal.struct_) ~count:1) in
-    let status = W.PjRtBuffer.to_literal_sync t ptr in
+    let status = W.PjRtBuffer.to_literal_sync t.ptr ptr in
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> Literal.of_ptr
 end
@@ -602,14 +605,14 @@ module PjRtLoadedExecutable = struct
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr ~client
 
-  let execute_results_to_list ptr =
+  let execute_results_to_list ptr ~client =
     let ptr = Ctypes.( !@ ) ptr in
     let rec loop_inner acc ptr =
       let deref_ptr = Ctypes.( !@ ) ptr in
       if Ctypes.is_null deref_ptr
       then Array.of_list_rev acc
       else (
-        let elem = PjRtBuffer.of_ptr deref_ptr in
+        let elem = PjRtBuffer.of_ptr deref_ptr ~client in
         loop_inner (elem :: acc) (Ctypes.( +@ ) ptr 1))
     in
     let rec loop acc ptr =
@@ -630,5 +633,5 @@ module PjRtLoadedExecutable = struct
     in
     keep_alive args;
     Status.ok_exn status;
-    execute_results_to_list ptr
+    execute_results_to_list ptr ~client:t.client
 end
