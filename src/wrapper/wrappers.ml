@@ -427,6 +427,20 @@ module Op = struct
     keep_alive dims;
     of_ptr ptr ~builder:t.builder
 
+  let broadcast_in_dim t ~out_dims ~broadcast_dims =
+    let out_dims = carray_i64 out_dims in
+    let broadcast_dims = carray_i64 broadcast_dims in
+    let ptr =
+      W.Op.broadcast_in_dim
+        t.ptr
+        (CArray.length out_dims |> Unsigned.Size_t.of_int)
+        (CArray.start out_dims)
+        (CArray.length broadcast_dims |> Unsigned.Size_t.of_int)
+        (CArray.start broadcast_dims)
+    in
+    keep_alive (out_dims, broadcast_dims);
+    of_ptr ptr ~builder:t.builder
+
   let collapse t ~dim_indexes =
     let dims = normalize_indexes t ~dim_indexes |> CArray.of_list Ctypes.int64_t in
     let ptr =

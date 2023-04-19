@@ -1,6 +1,8 @@
 # ocaml-xla
 XLA (Accelerated Linear Algebra) bindings for OCaml. This is based on the
-[xla-rs](https://github.com/LaurentMazare/xla-rs) Rust bindings.
+[xla-rs](https://github.com/LaurentMazare/xla-rs) Rust bindings, the semantics
+for the various operands are documented on the [xla
+  website](https://www.tensorflow.org/xla/operation_semantics).
 
 Pre-compiled binaries for the xla library can be downloaded from the
 [elixir-nx/xla repo](https://github.com/elixir-nx/xla/releases/tag/v0.4.4).

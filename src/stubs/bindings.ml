@@ -205,6 +205,12 @@ module C (F : Cstubs.FOREIGN) = struct
 
     let reshape = foreign "op_reshape" (t @-> size_t @-> ptr int64_t @-> returning t)
     let broadcast = foreign "op_broadcast" (t @-> size_t @-> ptr int64_t @-> returning t)
+
+    let broadcast_in_dim =
+      foreign
+        "op_broadcast_in_dim"
+        (t @-> size_t @-> ptr int64_t @-> size_t @-> ptr int64_t @-> returning t)
+
     let collapse = foreign "op_collapse" (t @-> size_t @-> ptr int64_t @-> returning t)
     let transpose = foreign "op_transpose" (t @-> size_t @-> ptr int64_t @-> returning t)
     let dimensions_size = foreign "op_dimensions_size" (t @-> int64_t @-> returning t)

@@ -100,6 +100,7 @@ module Op : sig
   val einsum1 : t -> string -> t
   val reshape : t -> dims:int list -> t
   val broadcast : t -> dims:int list -> t
+  val broadcast_in_dim : t -> out_dims:int list -> broadcast_dims:int list -> t
   val collapse : t -> dim_indexes:int list -> t
   val transpose : t -> dim_indexes:int list -> t
   val swap_dims : t -> dim_index1:int -> dim_index2:int -> t
