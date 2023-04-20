@@ -13,5 +13,5 @@ let () =
   Stdio.printf "Got %d buffers\n" (Array.length buffers);
   let literal = Xla.Buffer.to_literal_sync buffers.(0) in
   Stdio.printf "Size in bytes %d\n" (Xla.Literal.size_bytes literal);
-  let ba = Xla.Literal.to_bigarray literal Bigarray.float32 in
+  let ba = Xla.Literal.to_bigarray literal ~kind:Bigarray.float32 in
   Stdio.printf "Result %f\n" (Bigarray.Genarray.get ba [||])

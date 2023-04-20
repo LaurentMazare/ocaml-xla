@@ -8,10 +8,10 @@ let read_error fmt = Printf.ksprintf (fun s -> raise (Read_error s)) fmt
 let magic_string = "\147NUMPY"
 let magic_string_len = String.length magic_string
 
-let dtype ~element_type =
+let dtype ~ty =
   let endianness = if Sys.big_endian then ">" else "<" in
   let kind =
-    match (element_type : Element_type.t) with
+    match (ty : Element_type.t) with
     | S8 -> "i1"
     | S16 -> "i2"
     | S32 -> "i4"
@@ -24,8 +24,7 @@ let dtype ~element_type =
     | F64 -> "f8"
     | C64 -> "c8" (* 2 32bits float. *)
     | C128 -> "c16" (* 2 64bits float. *)
-    | element_type ->
-      [%message "unsupported" (element_type : Element_type.t)] |> failwith_s
+    | ty -> [%message "unsupported" (ty : Element_type.t)] |> failwith_s
   in
   endianness ^ kind
 
@@ -34,11 +33,11 @@ let shape ~dims =
   | [ dim1 ] -> Printf.sprintf "%d," dim1
   | dims -> List.map dims ~f:Int.to_string |> String.concat ~sep:", "
 
-let full_header ?header_len ~element_type ~dims () =
+let full_header ?header_len ~ty ~dims () =
   let header =
     Printf.sprintf
       "{'descr': '%s', 'fortran_order': False, 'shape': (%s), }"
-      (dtype ~element_type)
+      (dtype ~ty)
       (shape ~dims)
   in
   let padding_len =
@@ -91,15 +90,15 @@ let map_file file_descr ~pos kind layout shared shape =
 
 let write ?header_len literal filename =
   let shape = Literal.shape literal in
-  let element_type = Shape.element_type shape in
+  let ty = Shape.ty shape in
   let dims = Shape.dimensions shape in
   let (Element_type.P kind) =
-    match Element_type.ba_kind element_type with
+    match Element_type.ba_kind ty with
     | Some kind -> kind
-    | None -> [%message "unsupported" (element_type : Element_type.t)] |> failwith_s
+    | None -> [%message "unsupported" (ty : Element_type.t)] |> failwith_s
   in
   with_file filename [ O_CREAT; O_TRUNC; O_RDWR ] 0o640 ~f:(fun file_descr ->
-    let full_header = full_header () ?header_len ~element_type ~dims in
+    let full_header = full_header () ?header_len ~ty ~dims in
     let full_header_len = String.length full_header in
     if Unix.write_substring file_descr full_header 0 full_header_len <> full_header_len
     then raise Cannot_write;

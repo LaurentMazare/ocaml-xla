@@ -34,7 +34,7 @@ module Shape = struct
     let dsize = W.Shape.dimensions_size t in
     List.init dsize ~f:(W.Shape.dimensions t)
 
-  let element_type t = W.Shape.element_type t |> Element_type.of_c_int
+  let ty t = W.Shape.element_type t |> Element_type.of_c_int
 end
 
 module Builder = struct
@@ -58,11 +58,11 @@ module Literal = struct
     Caml.Gc.finalise W.Literal.release ptr;
     ptr
 
-  let create ~element_type ~dims =
+  let create ~ty ~dims =
     let dims = carray_i64 dims in
     let t =
       W.Literal.create_from_shape
-        (Element_type.to_c_int element_type)
+        (Element_type.to_c_int ty)
         (CArray.start dims)
         (CArray.length dims |> Unsigned.Size_t.of_int)
     in
@@ -85,13 +85,13 @@ module Literal = struct
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr
 
-  let convert t ~element_type =
+  let convert t ~ty =
     let ptr = Ctypes.(allocate_n (ptr W.Literal.struct_) ~count:1) in
-    let status = W.Literal.convert t (Element_type.to_c_int element_type) ptr in
+    let status = W.Literal.convert t (Element_type.to_c_int ty) ptr in
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr
 
-  let element_type t = W.Literal.element_type t |> Element_type.of_c_int
+  let ty t = W.Literal.element_type t |> Element_type.of_c_int
   let size_bytes t = W.Literal.size_bytes t |> Int64.to_int_exn
   let element_count t = W.Literal.element_count t |> Int64.to_int_exn
 
@@ -110,7 +110,7 @@ module Literal = struct
     if not (Array.equal Int.equal ba_dims dims)
     then
       failwith_s [%message "dims do not match" (ba_dims : int array) (dims : int array)];
-    Element_type.check_exn (Shape.element_type shape) (Bigarray.Genarray.kind ba)
+    Element_type.check_exn (Shape.ty shape) (Bigarray.Genarray.kind ba)
 
   let copy_from_bigarray t ~src =
     check_same_dims_and_kind t src;
@@ -131,7 +131,7 @@ module Literal = struct
     keep_alive dst
 
   let of_bigarray (type a b) (src : (a, b, Bigarray.c_layout) Bigarray.Genarray.t) =
-    let element_type : Element_type.t =
+    let ty : Element_type.t =
       match Bigarray.Genarray.kind src with
       | Char | Int8_unsigned -> U8
       | Int16_unsigned -> U16
@@ -146,7 +146,7 @@ module Literal = struct
     let dims = Bigarray.Genarray.dims src |> Array.to_list |> carray_i64 in
     let t =
       W.Literal.create_from_shape_and_data
-        (Element_type.to_c_int element_type)
+        (Element_type.to_c_int ty)
         (CArray.start dims)
         (CArray.length dims |> Unsigned.Size_t.of_int)
         (Ctypes.bigarray_start Ctypes.genarray src |> Ctypes.to_voidp)
@@ -201,7 +201,7 @@ module Op = struct
     let dim_index = normalize_index ~rank ~dim_index in
     W.Op.dimensions_size t.ptr (Int64.of_int_exn dim_index) |> of_ptr ~builder:t.builder
 
-  let element_type t =
+  let ty t =
     let ptr = Ctypes.(allocate_n int ~count:1) in
     let status = W.Op.get_element_type t.builder t.ptr ptr in
     Status.ok_exn status;
@@ -217,13 +217,13 @@ module Op = struct
 
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
 
-  let parameter name ~id ~element_type ~dims ~builder =
+  let parameter name ~id ~ty ~dims ~builder =
     let dims = List.map dims ~f:Signed.Long.of_int |> CArray.of_list Ctypes.long in
     let t =
       W.Op.parameter
         builder
         (Int64.of_int_exn id)
-        (Element_type.to_c_int element_type)
+        (Element_type.to_c_int ty)
         (CArray.length dims)
         (CArray.start dims)
         name
@@ -298,22 +298,22 @@ module Op = struct
   let r0_f32 v ~builder = W.Op.r0_f32 builder v |> of_ptr ~builder
   let r0_f64 v ~builder = W.Op.r0_f64 builder v |> of_ptr ~builder
 
-  let min_value ~element_type ~builder =
-    W.Op.min_value builder (Element_type.to_c_int element_type) |> of_ptr ~builder
+  let min_value ~ty ~builder =
+    W.Op.min_value builder (Element_type.to_c_int ty) |> of_ptr ~builder
 
-  let max_value ~element_type ~builder =
-    W.Op.max_value builder (Element_type.to_c_int element_type) |> of_ptr ~builder
+  let max_value ~ty ~builder =
+    W.Op.max_value builder (Element_type.to_c_int ty) |> of_ptr ~builder
 
-  let iota1 ~element_type ~size ~builder =
-    W.Op.iota1 builder (Element_type.to_c_int element_type) (Unsigned.Size_t.of_int size)
+  let iota1 ~ty ~size ~builder =
+    W.Op.iota1 builder (Element_type.to_c_int ty) (Unsigned.Size_t.of_int size)
     |> of_ptr ~builder
 
-  let iota ~element_type ~dims ~iota_dimension ~builder =
+  let iota ~ty ~dims ~iota_dimension ~builder =
     let dims = carray_i64 dims in
     let t =
       W.Op.iota
         builder
-        (Element_type.to_c_int element_type)
+        (Element_type.to_c_int ty)
         (CArray.length dims |> Unsigned.Size_t.of_int)
         (CArray.start dims)
         (Int64.of_int_exn iota_dimension)
@@ -500,8 +500,8 @@ module Op = struct
     keep_alive dims;
     of_ptr ptr ~builder:t.builder
 
-  let convert t ~element_type =
-    let ptr = W.Op.convert_element_types t.ptr (Element_type.to_c_int element_type) in
+  let convert t ~ty =
+    let ptr = W.Op.convert_element_types t.ptr (Element_type.to_c_int ty) in
     of_ptr ptr ~builder:t.builder
 
   let builder t = t.builder
@@ -668,6 +668,18 @@ module PjRtLoadedExecutable = struct
     let ptr = Ctypes.(allocate_n (ptr (ptr (ptr W.PjRtBuffer.struct_))) ~count:1) in
     let status =
       W.PjRtLoadedExecutable.execute t.ptr (CArray.start args) (CArray.length args) ptr
+    in
+    keep_alive args;
+    Status.ok_exn status;
+    execute_results_to_list ptr ~client:t.client
+
+  let execute_b t args =
+    let args =
+      List.map args ~f:(fun b -> b.PjRtBuffer.ptr) |> CArray.of_list W.PjRtBuffer.t
+    in
+    let ptr = Ctypes.(allocate_n (ptr (ptr (ptr W.PjRtBuffer.struct_))) ~count:1) in
+    let status =
+      W.PjRtLoadedExecutable.execute_b t.ptr (CArray.start args) (CArray.length args) ptr
     in
     keep_alive args;
     Status.ok_exn status;

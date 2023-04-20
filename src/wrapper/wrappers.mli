@@ -5,7 +5,7 @@ module Shape : sig
   type t
 
   val dimensions : t -> int list
-  val element_type : t -> Element_type.t
+  val ty : t -> Element_type.t
 end
 
 module Builder : sig
@@ -19,11 +19,11 @@ end
 module Literal : sig
   type t
 
-  val create : element_type:Element_type.t -> dims:int list -> t
+  val create : ty:Element_type.t -> dims:int list -> t
   val clone : t -> t
   val reshape : t -> dims:int list -> t
-  val convert : t -> element_type:Element_type.t -> t
-  val element_type : t -> Element_type.t
+  val convert : t -> ty:Element_type.t -> t
+  val ty : t -> Element_type.t
   val size_bytes : t -> int
   val element_count : t -> int
   val shape : t -> Shape.t
@@ -46,7 +46,7 @@ module Op : sig
 
   val builder : t -> Builder.t
   val rank : t -> int
-  val element_type : t -> Element_type.t
+  val ty : t -> Element_type.t
   val dims : t -> int list
   val constant : Literal.t -> builder:Builder.t -> t
   val normalize_index : rank:int -> dim_index:int -> int
@@ -54,7 +54,7 @@ module Op : sig
   val parameter
     :  string
     -> id:int
-    -> element_type:Element_type.t
+    -> ty:Element_type.t
     -> dims:int list
     -> builder:Builder.t
     -> t
@@ -65,12 +65,12 @@ module Op : sig
   val r0_u64 : int -> builder:Builder.t -> t
   val r0_f32 : float -> builder:Builder.t -> t
   val r0_f64 : float -> builder:Builder.t -> t
-  val min_value : element_type:Element_type.t -> builder:Builder.t -> t
-  val max_value : element_type:Element_type.t -> builder:Builder.t -> t
-  val iota1 : element_type:Element_type.t -> size:int -> builder:Builder.t -> t
+  val min_value : ty:Element_type.t -> builder:Builder.t -> t
+  val max_value : ty:Element_type.t -> builder:Builder.t -> t
+  val iota1 : ty:Element_type.t -> size:int -> builder:Builder.t -> t
 
   val iota
-    :  element_type:Element_type.t
+    :  ty:Element_type.t
     -> dims:int list
     -> iota_dimension:int
     -> builder:Builder.t
@@ -112,7 +112,7 @@ module Op : sig
   val collapse : t -> dim_indexes:int list -> t
   val transpose : t -> dim_indexes:int list -> t
   val swap_dims : t -> dim_index1:int -> dim_index2:int -> t
-  val convert : t -> element_type:Element_type.t -> t
+  val convert : t -> ty:Element_type.t -> t
   val dimensions_size : t -> dim_index:int -> t
 
   (* Binary. *)
@@ -218,4 +218,5 @@ module PjRtLoadedExecutable : sig
 
   val compile : PjRtClient.t -> Computation.t -> t
   val execute : t -> Literal.t list -> PjRtBuffer.t array array
+  val execute_b : t -> PjRtBuffer.t list -> PjRtBuffer.t array array
 end

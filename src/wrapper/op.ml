@@ -28,9 +28,9 @@ let take t ~start_indices ~dim_index =
 let reduce_sum t ~dims ~keep_dims =
   (* TODO: memoize the computation? *)
   let builder = Builder.create ~name:"sum" in
-  let element_type = element_type t in
-  let x = parameter "x" ~id:0 ~element_type ~dims:[] ~builder in
-  let y = parameter "y" ~id:1 ~element_type ~dims:[] ~builder in
+  let ty = ty t in
+  let x = parameter "x" ~id:0 ~ty ~dims:[] ~builder in
+  let y = parameter "y" ~id:1 ~ty ~dims:[] ~builder in
   reduce
     t
     ~init:(zero_like t)
@@ -44,20 +44,20 @@ let reduce_mean t ~dims ~keep_dims =
     List.fold dims ~init:(r0_i32 1 ~builder) ~f:(fun acc dim_index ->
       dimensions_size t ~dim_index |> mul acc)
   in
-  div (reduce_sum t ~dims ~keep_dims) (convert scale ~element_type:(element_type t))
+  div (reduce_sum t ~dims ~keep_dims) (convert scale ~ty:(ty t))
 
 let reduce_max t ~dims ~keep_dims =
   (* TODO: memoize the computation? *)
   let max =
     let builder = Builder.create ~name:"max" in
-    let element_type = element_type t in
-    let x = parameter "x" ~id:0 ~element_type ~dims:[] ~builder in
-    let y = parameter "y" ~id:1 ~element_type ~dims:[] ~builder in
+    let ty = ty t in
+    let x = parameter "x" ~id:0 ~ty ~dims:[] ~builder in
+    let y = parameter "y" ~id:1 ~ty ~dims:[] ~builder in
     max x y
   in
   reduce
     t
-    ~init:(min_value ~element_type:(element_type t) ~builder:(builder t))
+    ~init:(min_value ~ty:(ty t) ~builder:(builder t))
     ~f:(Wrappers.Computation.build ~root:max)
     ~dims
     ~keep_dims
@@ -66,14 +66,14 @@ let reduce_min t ~dims ~keep_dims =
   (* TODO: memoize the computation? *)
   let min =
     let builder = Builder.create ~name:"max" in
-    let element_type = element_type t in
-    let x = parameter "x" ~id:0 ~element_type ~dims:[] ~builder in
-    let y = parameter "y" ~id:1 ~element_type ~dims:[] ~builder in
+    let ty = ty t in
+    let x = parameter "x" ~id:0 ~ty ~dims:[] ~builder in
+    let y = parameter "y" ~id:1 ~ty ~dims:[] ~builder in
     min x y
   in
   reduce
     t
-    ~init:(max_value ~element_type:(element_type t) ~builder:(builder t))
+    ~init:(max_value ~ty:(ty t) ~builder:(builder t))
     ~f:(Wrappers.Computation.build ~root:min)
     ~dims
     ~keep_dims
@@ -86,7 +86,7 @@ let softmax t ~dim_index =
 
 let layer_norm t ~dim_index ~scale ~bias =
   let builder = builder t in
-  let eps = r0_f32 1e-5 ~builder |> convert ~element_type:(element_type t) in
+  let eps = r0_f32 1e-5 ~builder |> convert ~ty:(ty t) in
   let mean = reduce_mean t ~dims:[ dim_index ] ~keep_dims:true in
   let mean2 = reduce_mean (mul t t) ~dims:[ dim_index ] ~keep_dims:true in
   let var = sub mean2 (mul mean mean) in

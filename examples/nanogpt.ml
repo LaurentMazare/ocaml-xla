@@ -76,7 +76,7 @@ module VarStore : sig
   type t
 
   val create_npz : string -> t
-  val get : t -> string -> element_type:Element_type.t -> dims:int list -> Literal.t
+  val get : t -> string -> ty:Element_type.t -> dims:int list -> Literal.t
   val sub : t -> string -> t
 end = struct
   type t =
@@ -90,7 +90,7 @@ end = struct
 
   let sub t dir_name = { literals = t.literals; rev_path = dir_name :: t.rev_path }
 
-  let get t name ~element_type ~dims =
+  let get t name ~ty ~dims =
     let name = List.rev (name :: t.rev_path) |> String.concat ~sep:"." in
     match Hashtbl.find t.literals name with
     | None ->
@@ -99,15 +99,15 @@ end = struct
       |> failwith_s
     | Some literal ->
       let shape = Literal.shape literal in
-      let read_element_type = Xla.Shape.element_type shape in
+      let read_ty = Xla.Shape.ty shape in
       let read_dims = Xla.Shape.dimensions shape in
-      if not (Element_type.equal element_type read_element_type)
+      if not (Element_type.equal ty read_ty)
       then
         [%message
-          "element_type mismatch"
+          "element type mismatch"
             (name : string)
-            (element_type : Element_type.t)
-            (read_element_type : Element_type.t)]
+            (ty : Element_type.t)
+            (read_ty : Element_type.t)]
         |> failwith_s;
       if Caml.( <> ) dims read_dims
       then
@@ -148,9 +148,7 @@ module Embedding = struct
   type t = { embeddings : Literal.t }
 
   let create vs ~vocab_size ~n_embd =
-    let embeddings =
-      VarStore.get vs "weight" ~element_type:F32 ~dims:[ vocab_size; n_embd ]
-    in
+    let embeddings = VarStore.get vs "weight" ~ty:F32 ~dims:[ vocab_size; n_embd ] in
     { embeddings }
 
   let forward t xs =
@@ -166,8 +164,8 @@ module LayerNorm = struct
     }
 
   let create vs ~size =
-    let scale = VarStore.get vs "weight" ~element_type:F32 ~dims:[ size ] in
-    let bias = VarStore.get vs "bias" ~element_type:F32 ~dims:[ size ] in
+    let scale = VarStore.get vs "weight" ~ty:F32 ~dims:[ size ] in
+    let bias = VarStore.get vs "bias" ~ty:F32 ~dims:[ size ] in
     { scale; bias; dims = [ 1; 1; size ] }
 
   let forward t xs =
@@ -185,10 +183,10 @@ module Linear = struct
     }
 
   let create vs ~in_size ~out_size ~with_bias =
-    let ws = VarStore.get vs "weight" ~element_type:F32 ~dims:[ in_size; out_size ] in
+    let ws = VarStore.get vs "weight" ~ty:F32 ~dims:[ in_size; out_size ] in
     let bs =
       if with_bias
-      then VarStore.get vs "bias" ~element_type:F32 ~dims:[ out_size ] |> Option.some
+      then VarStore.get vs "bias" ~ty:F32 ~dims:[ out_size ] |> Option.some
       else None
     in
     { ws; bs; dims = [ 1; 1; out_size ] }
@@ -367,12 +365,7 @@ let gpt_computation vs config ~b_sz =
   let gpt = Gpt.create vs config in
   let builder = Xla.Builder.create ~name:"gpt" in
   let input =
-    Op.parameter
-      "tokens"
-      ~id:0
-      ~element_type:S32
-      ~dims:[ b_sz; config.block_size ]
-      ~builder
+    Op.parameter "tokens" ~id:0 ~ty:S32 ~dims:[ b_sz; config.block_size ] ~builder
   in
   let logits = Gpt.forward gpt input in
   let root =
