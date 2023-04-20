@@ -1,5 +1,0 @@
-(test
- (name xla)
- (libraries base ctypes ctypes.foreign sexplib stdio)
- (preprocess
-  (pps ppx_inline_test ppx_expect ppx_sexp_conv ppx_sexp_message)))
