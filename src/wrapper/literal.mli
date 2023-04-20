@@ -1,7 +1,7 @@
 open! Import
 include module type of Wrappers.Literal
 
-val dims : t -> int list
+val dims : t -> int array
 
 val to_bigarray
   :  t

@@ -4,7 +4,7 @@ open! Base
 module Shape : sig
   type t
 
-  val dimensions : t -> int list
+  val dimensions : t -> int array
   val ty : t -> Element_type.t
 end
 
@@ -19,9 +19,9 @@ end
 module Literal : sig
   type t
 
-  val create : ty:Element_type.t -> dims:int list -> t
+  val create : ty:Element_type.t -> dims:int array -> t
   val clone : t -> t
-  val reshape : t -> dims:int list -> t
+  val reshape : t -> dims:int array -> t
   val convert : t -> ty:Element_type.t -> t
   val ty : t -> Element_type.t
   val size_bytes : t -> int
@@ -47,7 +47,7 @@ module Op : sig
   val builder : t -> Builder.t
   val rank : t -> int
   val ty : t -> Element_type.t
-  val dims : t -> int list
+  val dims : t -> int array
   val constant : Literal.t -> builder:Builder.t -> t
   val normalize_index : rank:int -> dim_index:int -> int
 
@@ -55,7 +55,7 @@ module Op : sig
     :  string
     -> id:int
     -> ty:Element_type.t
-    -> dims:int list
+    -> dims:int array
     -> builder:Builder.t
     -> t
 
@@ -71,7 +71,7 @@ module Op : sig
 
   val iota
     :  ty:Element_type.t
-    -> dims:int list
+    -> dims:int array
     -> iota_dimension:int
     -> builder:Builder.t
     -> t
@@ -106,11 +106,11 @@ module Op : sig
   val zeros_like : t -> t
   val zero_like : t -> t
   val einsum1 : t -> string -> t
-  val reshape : t -> dims:int list -> t
-  val broadcast : t -> dims:int list -> t
-  val broadcast_in_dim : t -> out_dims:int list -> broadcast_dims:int list -> t
-  val collapse : t -> dim_indexes:int list -> t
-  val transpose : t -> dim_indexes:int list -> t
+  val reshape : t -> dims:int array -> t
+  val broadcast : t -> dims:int array -> t
+  val broadcast_in_dim : t -> out_dims:int array -> broadcast_dims:int array -> t
+  val collapse : t -> dim_indexes:int array -> t
+  val transpose : t -> dim_indexes:int array -> t
   val swap_dims : t -> dim_index1:int -> dim_index2:int -> t
   val convert : t -> ty:Element_type.t -> t
   val dimensions_size : t -> dim_index:int -> t
@@ -139,10 +139,10 @@ module Op : sig
   val dot_general
     :  t
     -> t
-    -> lhs_c:int list
-    -> rhs_c:int list
-    -> lhs_b:int list
-    -> rhs_b:int list
+    -> lhs_c:int array
+    -> rhs_c:int array
+    -> lhs_b:int array
+    -> rhs_b:int array
     -> t
 
   val einsum2 : t -> t -> string -> t
@@ -154,11 +154,11 @@ module Op : sig
   val gather
     :  t
     -> start_indices:t
-    -> offset_dims:int list
-    -> collapsed_slice_dims:int list
-    -> start_index_map:int list
+    -> offset_dims:int array
+    -> collapsed_slice_dims:int array
+    -> start_index_map:int array
     -> set_index_vector_dim:int option
-    -> slice_sizes:int list
+    -> slice_sizes:int array
     -> t
 
   val slice_in_dim
@@ -169,7 +169,7 @@ module Op : sig
     -> dim:int
     -> t
 
-  val reduce : t -> init:t -> f:computation -> dims:int list -> keep_dims:bool -> t
+  val reduce : t -> init:t -> f:computation -> dims:int array -> keep_dims:bool -> t
 end
 
 module Computation : sig

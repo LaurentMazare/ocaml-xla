@@ -2,7 +2,12 @@ open! Base
 open! Import
 module CArray = Ctypes.CArray
 
-let carray_i64 v = List.map v ~f:Int64.of_int |> CArray.of_list Ctypes.int64_t
+let carray_map v ~ctype ~f =
+  let ca = CArray.make ctype (Array.length v) in
+  Array.iteri v ~f:(fun i v -> CArray.unsafe_set ca i (f v));
+  ca
+
+let carray_i64 v = carray_map v ~ctype:Ctypes.int64_t ~f:Int64.of_int
 
 let _add_compact =
   match Sys.getenv "OCAML_XLA_ADD_COMPACT" with
@@ -32,7 +37,7 @@ module Shape = struct
 
   let dimensions t =
     let dsize = W.Shape.dimensions_size t in
-    List.init dsize ~f:(W.Shape.dimensions t)
+    Array.init dsize ~f:(W.Shape.dimensions t)
 
   let ty t = W.Shape.element_type t |> Element_type.of_c_int
 end
@@ -105,7 +110,7 @@ module Literal = struct
      | C_layout -> ()
      | _ -> .);
     let shape = shape t in
-    let dims = Shape.dimensions shape |> Array.of_list in
+    let dims = Shape.dimensions shape in
     let ba_dims = Bigarray.Genarray.dims ba in
     if not (Array.equal Int.equal ba_dims dims)
     then
@@ -143,7 +148,7 @@ module Literal = struct
       | Float64 -> F64
       | _ba_kind -> failwith_s [%message "unsupported bigarray type"]
     in
-    let dims = Bigarray.Genarray.dims src |> Array.to_list |> carray_i64 in
+    let dims = Bigarray.Genarray.dims src |> carray_i64 in
     let t =
       W.Literal.create_from_shape_and_data
         (Element_type.to_c_int ty)
@@ -193,8 +198,7 @@ module Op = struct
 
   let normalize_indexes t ~dim_indexes =
     let rank = rank t in
-    List.map dim_indexes ~f:(fun dim_index ->
-      normalize_index ~rank ~dim_index |> Int64.of_int_exn)
+    Array.map dim_indexes ~f:(fun dim_index -> normalize_index ~rank ~dim_index)
 
   let dimensions_size t ~dim_index =
     let rank = rank t in
@@ -212,13 +216,13 @@ module Op = struct
     let ptr = Ctypes.(allocate_n size_t ~count:rank) in
     let status = W.Op.get_dimensions t.builder t.ptr ptr in
     Status.ok_exn status;
-    List.init rank ~f:(fun i ->
+    Array.init rank ~f:(fun i ->
       Ctypes.( +@ ) ptr i |> Ctypes.( !@ ) |> Unsigned.Size_t.to_int)
 
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
 
   let parameter name ~id ~ty ~dims ~builder =
-    let dims = List.map dims ~f:Signed.Long.of_int |> CArray.of_list Ctypes.long in
+    let dims = carray_map dims ~ctype:Ctypes.long ~f:Signed.Long.of_int in
     let t =
       W.Op.parameter
         builder
@@ -408,19 +412,19 @@ module Op = struct
     of_ptr ptr ~builder:t.builder
 
   let maybe_keep_dims t ~res ~reduce_dims ~keep_dims =
-    if keep_dims && not (List.is_empty reduce_dims)
+    if keep_dims && not (Array.is_empty reduce_dims)
     then (
       let dims =
         dims t
-        |> List.mapi ~f:(fun i d ->
-             if List.mem reduce_dims i ~equal:Int.equal then 1 else d)
+        |> Array.mapi ~f:(fun i d ->
+             if Array.mem reduce_dims i ~equal:Int.equal then 1 else d)
       in
       reshape res ~dims)
     else res
 
   let reduce t ~init ~f ~dims ~keep_dims =
     let rank = rank t in
-    let dims = List.map dims ~f:(fun dim_index -> normalize_index ~rank ~dim_index) in
+    let dims = Array.map dims ~f:(fun dim_index -> normalize_index ~rank ~dim_index) in
     let dims_ = carray_i64 dims in
     let res =
       W.Op.reduce
@@ -460,7 +464,7 @@ module Op = struct
     of_ptr ptr ~builder:t.builder
 
   let collapse t ~dim_indexes =
-    let dims = normalize_indexes t ~dim_indexes |> CArray.of_list Ctypes.int64_t in
+    let dims = normalize_indexes t ~dim_indexes |> carray_i64 in
     let ptr =
       W.Op.collapse
         t.ptr
@@ -471,7 +475,7 @@ module Op = struct
     of_ptr ptr ~builder:t.builder
 
   let transpose t ~dim_indexes =
-    let dims = normalize_indexes t ~dim_indexes |> CArray.of_list Ctypes.int64_t in
+    let dims = normalize_indexes t ~dim_indexes |> carray_i64 in
     let ptr =
       W.Op.transpose
         t.ptr

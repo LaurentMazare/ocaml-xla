@@ -6,22 +6,24 @@ module Builder = Wrappers.Builder
 let take t ~start_indices ~dim_index =
   let start_indices_dims = dims start_indices in
   let dims = dims t in
-  let rank = List.length dims in
-  let rank_start_indices = List.length start_indices_dims in
+  let rank = Array.length dims in
+  let rank_start_indices = Array.length start_indices_dims in
   let dim_index = normalize_index ~rank ~dim_index in
   let offset_dims =
-    List.init (rank + rank_start_indices - 1) ~f:Fn.id
-    |> List.filter ~f:(fun i -> i < dim_index || i >= dim_index + rank_start_indices)
+    Array.init (rank + rank_start_indices - 1) ~f:Fn.id
+    |> Array.filter ~f:(fun i -> i < dim_index || i >= dim_index + rank_start_indices)
   in
-  let slice_sizes = List.mapi dims ~f:(fun i d -> if i = dim_index then 1 else d) in
-  let start_indices = reshape start_indices ~dims:(start_indices_dims @ [ 1 ]) in
+  let slice_sizes = Array.mapi dims ~f:(fun i d -> if i = dim_index then 1 else d) in
+  let start_indices =
+    reshape start_indices ~dims:(Array.concat [ start_indices_dims; [| 1 |] ])
+  in
   (* Same as in Jax: always use the last dimension for index_vector_dim. *)
   gather
     t
     ~start_indices
     ~offset_dims
-    ~collapsed_slice_dims:[ dim_index ]
-    ~start_index_map:[ dim_index ]
+    ~collapsed_slice_dims:[| dim_index |]
+    ~start_index_map:[| dim_index |]
     ~set_index_vector_dim:(Some rank_start_indices)
     ~slice_sizes
 
@@ -29,8 +31,8 @@ let reduce_sum t ~dims ~keep_dims =
   (* TODO: memoize the computation? *)
   let builder = Builder.create ~name:"sum" in
   let ty = ty t in
-  let x = parameter "x" ~id:0 ~ty ~dims:[] ~builder in
-  let y = parameter "y" ~id:1 ~ty ~dims:[] ~builder in
+  let x = parameter "x" ~id:0 ~ty ~dims:[||] ~builder in
+  let y = parameter "y" ~id:1 ~ty ~dims:[||] ~builder in
   reduce
     t
     ~init:(zero_like t)
@@ -41,7 +43,7 @@ let reduce_sum t ~dims ~keep_dims =
 let reduce_mean t ~dims ~keep_dims =
   let builder = builder t in
   let scale =
-    List.fold dims ~init:(r0_i32 1 ~builder) ~f:(fun acc dim_index ->
+    Array.fold dims ~init:(r0_i32 1 ~builder) ~f:(fun acc dim_index ->
       dimensions_size t ~dim_index |> mul acc)
   in
   div (reduce_sum t ~dims ~keep_dims) (convert scale ~ty:(ty t))
@@ -51,8 +53,8 @@ let reduce_max t ~dims ~keep_dims =
   let max =
     let builder = Builder.create ~name:"max" in
     let ty = ty t in
-    let x = parameter "x" ~id:0 ~ty ~dims:[] ~builder in
-    let y = parameter "y" ~id:1 ~ty ~dims:[] ~builder in
+    let x = parameter "x" ~id:0 ~ty ~dims:[||] ~builder in
+    let y = parameter "y" ~id:1 ~ty ~dims:[||] ~builder in
     max x y
   in
   reduce
@@ -67,8 +69,8 @@ let reduce_min t ~dims ~keep_dims =
   let min =
     let builder = Builder.create ~name:"max" in
     let ty = ty t in
-    let x = parameter "x" ~id:0 ~ty ~dims:[] ~builder in
-    let y = parameter "y" ~id:1 ~ty ~dims:[] ~builder in
+    let x = parameter "x" ~id:0 ~ty ~dims:[||] ~builder in
+    let y = parameter "y" ~id:1 ~ty ~dims:[||] ~builder in
     min x y
   in
   reduce
@@ -79,16 +81,16 @@ let reduce_min t ~dims ~keep_dims =
     ~keep_dims
 
 let softmax t ~dim_index =
-  let max = reduce_max t ~dims:[ dim_index ] ~keep_dims:true in
+  let max = reduce_max t ~dims:[| dim_index |] ~keep_dims:true in
   let unnormalized = sub t max |> exp in
-  let sum = reduce_sum unnormalized ~dims:[ dim_index ] ~keep_dims:true in
+  let sum = reduce_sum unnormalized ~dims:[| dim_index |] ~keep_dims:true in
   div unnormalized sum
 
 let layer_norm t ~dim_index ~scale ~bias =
   let builder = builder t in
   let eps = r0_f32 1e-5 ~builder |> convert ~ty:(ty t) in
-  let mean = reduce_mean t ~dims:[ dim_index ] ~keep_dims:true in
-  let mean2 = reduce_mean (mul t t) ~dims:[ dim_index ] ~keep_dims:true in
+  let mean = reduce_mean t ~dims:[| dim_index |] ~keep_dims:true in
+  let mean2 = reduce_mean (mul t t) ~dims:[| dim_index |] ~keep_dims:true in
   let var = sub mean2 (mul mean mean) in
   let s = add var eps |> rsqrt in
   add bias (mul s (sub t mean) |> mul scale)
@@ -97,8 +99,8 @@ let layer_norm t ~dim_index ~scale ~bias =
    https://github.com/google/jax/blob/849e47f79ac64ccba1a762804217c00a9905025b/jax/_src/numpy/lax_numpy.py#L3028
 *)
 let matmul lhs rhs =
-  let lhs_dims = dims lhs |> Array.of_list in
-  let rhs_dims = dims rhs |> Array.of_list in
+  let lhs_dims = dims lhs in
+  let rhs_dims = dims rhs in
   let lhs_ndims = Array.length lhs_dims in
   let rhs_ndims = Array.length rhs_dims in
   if lhs_ndims < 1 || rhs_ndims < 1
@@ -138,7 +140,7 @@ let matmul lhs rhs =
   dot_general
     lhs
     rhs
-    ~lhs_c:[ lhs_ndims - 1 ]
-    ~rhs_c:[ (rhs_ndims - if rhs_is_mat then 2 else 1) ]
-    ~lhs_b:(Queue.to_list lhs_batch_dims)
-    ~rhs_b:(Queue.to_list rhs_batch_dims)
+    ~lhs_c:[| lhs_ndims - 1 |]
+    ~rhs_c:[| (rhs_ndims - if rhs_is_mat then 2 else 1) |]
+    ~lhs_b:(Queue.to_array lhs_batch_dims)
+    ~rhs_b:(Queue.to_array rhs_batch_dims)

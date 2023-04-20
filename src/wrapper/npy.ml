@@ -30,8 +30,8 @@ let dtype ~ty =
 
 let shape ~dims =
   match dims with
-  | [ dim1 ] -> Printf.sprintf "%d," dim1
-  | dims -> List.map dims ~f:Int.to_string |> String.concat ~sep:", "
+  | [| dim1 |] -> Printf.sprintf "%d," dim1
+  | dims -> Array.map dims ~f:Int.to_string |> String.concat_array ~sep:", "
 
 let full_header ?header_len ~ty ~dims () =
   let header =
@@ -103,13 +103,7 @@ let write ?header_len literal filename =
     if Unix.write_substring file_descr full_header 0 full_header_len <> full_header_len
     then raise Cannot_write;
     let file_array =
-      map_file
-        ~pos:(Int64.of_int full_header_len)
-        file_descr
-        kind
-        C_layout
-        true
-        (Array.of_list dims)
+      map_file ~pos:(Int64.of_int full_header_len) file_descr kind C_layout true dims
     in
     Literal.copy_to_bigarray literal ~dst:file_array)
 

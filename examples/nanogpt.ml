@@ -76,7 +76,7 @@ module VarStore : sig
   type t
 
   val create_npz : string -> t
-  val get : t -> string -> ty:Element_type.t -> dims:int list -> Literal.t
+  val get : t -> string -> ty:Element_type.t -> dims:int array -> Literal.t
   val sub : t -> string -> t
 end = struct
   type t =
@@ -112,7 +112,7 @@ end = struct
       if Caml.( <> ) dims read_dims
       then
         [%message
-          "dims mismatch" (name : string) (dims : int list) (read_dims : int list)]
+          "dims mismatch" (name : string) (dims : int array) (read_dims : int array)]
         |> failwith_s;
       literal
 end
@@ -148,7 +148,7 @@ module Embedding = struct
   type t = { embeddings : Literal.t }
 
   let create vs ~vocab_size ~n_embd =
-    let embeddings = VarStore.get vs "weight" ~ty:F32 ~dims:[ vocab_size; n_embd ] in
+    let embeddings = VarStore.get vs "weight" ~ty:F32 ~dims:[| vocab_size; n_embd |] in
     { embeddings }
 
   let forward t xs =
@@ -160,13 +160,13 @@ module LayerNorm = struct
   type t =
     { scale : Literal.t
     ; bias : Literal.t
-    ; dims : int list
+    ; dims : int array
     }
 
   let create vs ~size =
-    let scale = VarStore.get vs "weight" ~ty:F32 ~dims:[ size ] in
-    let bias = VarStore.get vs "bias" ~ty:F32 ~dims:[ size ] in
-    { scale; bias; dims = [ 1; 1; size ] }
+    let scale = VarStore.get vs "weight" ~ty:F32 ~dims:[| size |] in
+    let bias = VarStore.get vs "bias" ~ty:F32 ~dims:[| size |] in
+    { scale; bias; dims = [| 1; 1; size |] }
 
   let forward t xs =
     let builder = Op.builder xs in
@@ -179,23 +179,25 @@ module Linear = struct
   type t =
     { ws : Literal.t
     ; bs : Literal.t option
-    ; dims : int list
+    ; dims : int array
     }
 
   let create vs ~in_size ~out_size ~with_bias =
-    let ws = VarStore.get vs "weight" ~ty:F32 ~dims:[ in_size; out_size ] in
+    let ws = VarStore.get vs "weight" ~ty:F32 ~dims:[| in_size; out_size |] in
     let bs =
       if with_bias
-      then VarStore.get vs "bias" ~ty:F32 ~dims:[ out_size ] |> Option.some
+      then VarStore.get vs "bias" ~ty:F32 ~dims:[| out_size |] |> Option.some
       else None
     in
-    { ws; bs; dims = [ 1; 1; out_size ] }
+    { ws; bs; dims = [| 1; 1; out_size |] }
 
   let forward t xs =
     let builder = Op.builder xs in
     let rank = Op.rank xs in
     let ws = Op.constant t.ws ~builder in
-    let xs = Op.dot_general xs ws ~lhs_c:[ rank - 1 ] ~rhs_c:[ 0 ] ~lhs_b:[] ~rhs_b:[] in
+    let xs =
+      Op.dot_general xs ws ~lhs_c:[| rank - 1 |] ~rhs_c:[| 0 |] ~lhs_b:[||] ~rhs_b:[||]
+    in
     match t.bs with
     | None -> xs
     | Some bs ->
@@ -230,13 +232,13 @@ module CausalSelfAttention = struct
     let builder = Op.builder xs in
     let b_sz, t_sz, c_sz =
       match Op.dims xs with
-      | [ b; t; c ] -> b, t, c
-      | dims -> [%message "expected 3 dims" (dims : int list)] |> failwith_s
+      | [| b; t; c |] -> b, t, c
+      | dims -> [%message "expected 3 dims" (dims : int array)] |> failwith_s
     in
     let qkv = Linear.forward t.c_attn xs in
     let slice_qkv ~start_index ~stop_index =
       Op.slice_in_dim qkv ~start_index ~stop_index ~dim:2
-      |> Op.reshape ~dims:[ b_sz; t_sz; t.n_head; c_sz / t.n_head ]
+      |> Op.reshape ~dims:[| b_sz; t_sz; t.n_head; c_sz / t.n_head |]
       |> Op.swap_dims ~dim_index1:1 ~dim_index2:2
     in
     let q = slice_qkv ~start_index:(0 * t.n_embd) ~stop_index:(1 * t.n_embd) in
@@ -246,17 +248,17 @@ module CausalSelfAttention = struct
       Op.matmul q (Op.swap_dims k ~dim_index1:(-2) ~dim_index2:(-1))
       |> Op.mul
            (Op.r0_f32
-              (1. /. Float.sqrt (Op.dims k |> List.last_exn |> Float.of_int))
+              (1. /. Float.sqrt (Op.dims k |> Array.last |> Float.of_int))
               ~builder)
     in
     let mask =
       Op.r0_i32 1 ~builder
-      |> Op.broadcast ~dims:[ t_sz; t_sz ]
+      |> Op.broadcast ~dims:[| t_sz; t_sz |]
       |> Op.lower_triangle
-      |> Op.reshape ~dims:[ 1; 1; t_sz; t_sz ]
+      |> Op.reshape ~dims:[| 1; 1; t_sz; t_sz |]
     in
     let zero =
-      Op.r0_i32 0 ~builder |> Op.broadcast ~dims:[ b_sz; t.n_head; t_sz; t_sz ]
+      Op.r0_i32 0 ~builder |> Op.broadcast ~dims:[| b_sz; t.n_head; t_sz; t_sz |]
     in
     let att =
       masked_fill ~mask:(Op.eq mask zero) ~on_false:att ~on_true:Float.neg_infinity
@@ -264,7 +266,7 @@ module CausalSelfAttention = struct
     let y = Op.softmax att ~dim_index:(-1) in
     Op.matmul y v
     |> Op.swap_dims ~dim_index1:1 ~dim_index2:2
-    |> Op.reshape ~dims:[ b_sz; t_sz; c_sz ]
+    |> Op.reshape ~dims:[| b_sz; t_sz; c_sz |]
     |> Linear.forward t.c_proj
 end
 
@@ -341,8 +343,8 @@ module Gpt = struct
     let builder = Op.builder xs in
     let _b_sz, t_sz =
       match Op.dims xs with
-      | [ b; t ] -> b, t
-      | dims -> [%message "expected 2 dims" (dims : int list)] |> failwith_s
+      | [| b; t |] -> b, t
+      | dims -> [%message "expected 2 dims" (dims : int array)] |> failwith_s
     in
     let pos =
       Array.init t_sz ~f:Int64.of_int_exn
@@ -350,7 +352,7 @@ module Gpt = struct
       |> Bigarray.genarray_of_array1
       |> Literal.of_bigarray
       |> Op.constant ~builder
-      |> Op.reshape ~dims:[ 1; t_sz ]
+      |> Op.reshape ~dims:[| 1; t_sz |]
     in
     let tok_emb = Embedding.forward t.wte xs in
     let pos_emb = Embedding.forward t.wpe pos in
@@ -365,7 +367,7 @@ let gpt_computation vs config ~b_sz =
   let gpt = Gpt.create vs config in
   let builder = Xla.Builder.create ~name:"gpt" in
   let input =
-    Op.parameter "tokens" ~id:0 ~ty:S32 ~dims:[ b_sz; config.block_size ] ~builder
+    Op.parameter "tokens" ~id:0 ~ty:S32 ~dims:[| b_sz; config.block_size |] ~builder
   in
   let logits = Gpt.forward gpt input in
   let root =
