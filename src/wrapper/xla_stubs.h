@@ -151,6 +151,8 @@ xla_op op_reduce(const xla_op, const xla_op, const xla_computation, const int64_
 xla_op op_internal_error(const xla_builder, const char*);
 xla_op op_unknown_error(const xla_builder, const char*);
 xla_op op_invalid_argument_error(const xla_builder, const char*);
+xla_op op_iota1(const xla_builder, int, size_t);
+xla_op op_iota(const xla_builder, int, size_t, const int64_t*, int64_t);
 xla_builder op_builder(const xla_op);
 
 int xla_op_valid(const xla_op);
@@ -169,6 +171,7 @@ status get_dimensions(const xla_builder, const xla_op, size_t*);
 status build(const xla_builder, const xla_op, xla_computation*);
 status compile(const pjrt_client, const xla_computation, pjrt_loaded_executable*);
 status execute(const pjrt_loaded_executable, const literal *, int, pjrt_buffer ***);
+status execute_b(const pjrt_loaded_executable, const pjrt_buffer *, int, pjrt_buffer ***);
 status first_error(const xla_builder);
 status get_current_status(const xla_builder);
 

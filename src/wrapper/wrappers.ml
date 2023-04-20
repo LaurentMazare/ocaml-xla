@@ -304,6 +304,24 @@ module Op = struct
   let max_value ~element_type ~builder =
     W.Op.max_value builder (Element_type.to_c_int element_type) |> of_ptr ~builder
 
+  let iota1 ~element_type ~size ~builder =
+    W.Op.iota1 builder (Element_type.to_c_int element_type) (Unsigned.Size_t.of_int size)
+    |> of_ptr ~builder
+
+  let iota ~element_type ~dims ~iota_dimension ~builder =
+    let dims = carray_i64 dims in
+    let t =
+      W.Op.iota
+        builder
+        (Element_type.to_c_int element_type)
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (CArray.start dims)
+        (Int64.of_int_exn iota_dimension)
+      |> of_ptr ~builder
+    in
+    keep_alive dims;
+    t
+
   let slice_in_dim ?(stride = 1) ?(start_index = 0) t ~stop_index ~dim =
     W.Op.slice_in_dim
       t.ptr

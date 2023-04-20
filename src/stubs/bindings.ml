@@ -211,6 +211,12 @@ module C (F : Cstubs.FOREIGN) = struct
         "op_broadcast_in_dim"
         (t @-> size_t @-> ptr int64_t @-> size_t @-> ptr int64_t @-> returning t)
 
+    let iota =
+      foreign
+        "op_iota"
+        (Builder.t @-> int @-> size_t @-> ptr int64_t @-> int64_t @-> returning t)
+
+    let iota1 = foreign "op_iota1" (Builder.t @-> int @-> size_t @-> returning t)
     let collapse = foreign "op_collapse" (t @-> size_t @-> ptr int64_t @-> returning t)
     let transpose = foreign "op_transpose" (t @-> size_t @-> ptr int64_t @-> returning t)
     let dimensions_size = foreign "op_dimensions_size" (t @-> int64_t @-> returning t)
@@ -362,6 +368,15 @@ module C (F : Cstubs.FOREIGN) = struct
         "execute"
         (t
          @-> ptr Literal.t
+         @-> int
+         @-> ptr (ptr (ptr PjRtBuffer.t))
+         @-> returning Status.t)
+
+    let execute_b =
+      foreign
+        "execute_b"
+        (t
+         @-> ptr PjRtBuffer.t
          @-> int
          @-> ptr (ptr (ptr PjRtBuffer.t))
          @-> returning Status.t)

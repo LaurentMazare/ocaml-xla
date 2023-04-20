@@ -725,6 +725,22 @@ xla_op op_max_value(const xla_builder b, int pr_type) {
   END_PROTECT_OP_B(b)
 }
 
+xla_op op_iota1(const xla_builder b, int pr_type, size_t sz) {
+  BEGIN_PROTECT_OP
+  return new XlaOp(Iota(b, (PrimitiveType)pr_type, (int64_t)sz));
+  END_PROTECT_OP_B(b)
+}
+
+xla_op op_iota(const xla_builder b, int pr_type, size_t dsize, const int64_t* ds, int64_t increasing_dim) {
+  BEGIN_PROTECT_OP
+  auto shape = ShapeUtil::MakeShape(
+      (PrimitiveType)pr_type,
+      absl::Span<const long int>(ds, dsize)
+  );
+  return new XlaOp(Iota(b, shape, increasing_dim));
+  END_PROTECT_OP_B(b)
+}
+
 xla_builder op_builder(const xla_op arg) {
   return arg->builder();
 }
@@ -817,6 +833,29 @@ status execute(const pjrt_loaded_executable exe, const literal *inputs, int ninp
     MAYBE_RETURN_STATUS(buffer->GetReadyFuture().Await());
     input_buffer_ptrs.push_back(buffer.release());
   }
+  ASSIGN_OR_RETURN_STATUS(
+    results,
+    exe->Execute({input_buffer_ptrs}, options));
+  pjrt_buffer** out = (pjrt_buffer**)malloc((results.size() + 1) * sizeof(pjrt_buffer*));
+  for (size_t i = 0; i < results.size(); ++i) {
+    auto &replica_results = results[i];
+    pjrt_buffer* per_replica_outputs = (pjrt_buffer*)malloc((replica_results.size() + 1) * sizeof(pjrt_buffer));
+    for (size_t j = 0; j < replica_results.size(); ++j) {
+      per_replica_outputs[j] = replica_results[j].release();
+    }
+    per_replica_outputs[replica_results.size()] = nullptr;
+    out[i] = per_replica_outputs;
+  }
+  out[results.size()] = nullptr;
+  *outputs = out;
+  return nullptr;
+}
+
+status execute_b(const pjrt_loaded_executable exe, const pjrt_buffer *inputs, int ninputs, pjrt_buffer ***outputs) {
+  auto client = exe->client();
+  ExecuteOptions options;
+  options.strict_shape_checking = false;
+  std::vector<PjRtBuffer*> input_buffer_ptrs(inputs, inputs + ninputs);
   ASSIGN_OR_RETURN_STATUS(
     results,
     exe->Execute({input_buffer_ptrs}, options));

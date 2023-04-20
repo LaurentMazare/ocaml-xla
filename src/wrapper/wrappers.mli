@@ -67,6 +67,14 @@ module Op : sig
   val r0_f64 : float -> builder:Builder.t -> t
   val min_value : element_type:Element_type.t -> builder:Builder.t -> t
   val max_value : element_type:Element_type.t -> builder:Builder.t -> t
+  val iota1 : element_type:Element_type.t -> size:int -> builder:Builder.t -> t
+
+  val iota
+    :  element_type:Element_type.t
+    -> dims:int list
+    -> iota_dimension:int
+    -> builder:Builder.t
+    -> t
 
   (* Unary. *)
   val not_ : t -> t
