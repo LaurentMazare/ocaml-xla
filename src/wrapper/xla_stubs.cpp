@@ -633,6 +633,22 @@ xla_op op_concat_in_dim(const xla_op arg, const xla_op *args, size_t nargs, int6
   END_PROTECT_OP(arg)
 }
 
+xla_op op_tuple(const xla_builder b, const xla_op *args, size_t nargs) {
+  BEGIN_PROTECT_OP
+  std::vector<XlaOp> args_;
+  for (size_t i = 0; i < nargs; ++i) {
+    args_.push_back(*args[i]);
+  }
+  return new XlaOp(Tuple(b, absl::Span<const XlaOp>(args_)));
+  END_PROTECT_OP_B(b)
+}
+
+xla_op op_get_tuple_element(const xla_op arg, int64_t index) {
+  BEGIN_PROTECT_OP
+  return new XlaOp(GetTupleElement(*arg, index));
+  END_PROTECT_OP(arg)
+}
+
 xla_op op_gather(
     const xla_op arg1,
     const xla_op arg2,
@@ -751,6 +767,10 @@ int xla_op_valid(const xla_op op) {
 
 void xla_op_free(xla_op o) {
   delete o;
+}
+
+size_t shape_tuple_shapes_size(const shape s) {
+  return s->tuple_shapes_size();
 }
 
 int shape_dimensions_size(const shape s) {
@@ -916,6 +936,13 @@ int64_t literal_size_bytes(const literal l) {
 
 void literal_shape(const literal l, shape *out_shape) {
   *out_shape = new Shape(l->shape());
+}
+
+void literal_decompose_tuple(literal l, literal* outputs, size_t noutputs) {
+  auto tuple = l->DecomposeTuple();
+  for (int i = 0; i < std::min(noutputs, tuple.size()); ++i) {
+      outputs[i] = new Literal(std::move(tuple[i]));
+  }
 }
 
 int literal_element_type(const literal l) {
