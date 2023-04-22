@@ -144,3 +144,5 @@ let matmul lhs rhs =
     ~rhs_c:[| (rhs_ndims - if rhs_is_mat then 2 else 1) |]
     ~lhs_b:(Queue.to_array lhs_batch_dims)
     ~rhs_b:(Queue.to_array rhs_batch_dims)
+
+let silu x = mul x (logistic x)

@@ -11,3 +11,10 @@
  (libraries xla base re yojson sexplib stdio uutf)
  (preprocess
   (pps ppx_inline_test ppx_expect ppx_sexp_conv ppx_sexp_message)))
+
+(executable
+ (name llama)
+ (modules llama)
+ (libraries xla base re yojson sexplib stdio uutf)
+ (preprocess
+  (pps ppx_inline_test ppx_expect ppx_sexp_conv ppx_sexp_message)))

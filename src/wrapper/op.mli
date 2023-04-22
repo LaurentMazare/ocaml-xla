@@ -9,3 +9,4 @@ val reduce_min : t -> dims:int array -> keep_dims:bool -> t
 val softmax : t -> dim_index:int -> t
 val layer_norm : t -> dim_index:int -> scale:t -> bias:t -> t
 val matmul : t -> t -> t
+val silu : t -> t
