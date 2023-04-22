@@ -248,6 +248,29 @@ module C (F : Cstubs.FOREIGN) = struct
     let r0_u64 = foreign "constant_r0_uint64_t" (Builder.t @-> uint64_t @-> returning t)
     let r0_f32 = foreign "constant_r0_float" (Builder.t @-> float @-> returning t)
     let r0_f64 = foreign "constant_r0_double" (Builder.t @-> double @-> returning t)
+
+    let r1_i32 =
+      foreign "constant_r1_int32_t" (Builder.t @-> ptr int32_t @-> size_t @-> returning t)
+
+    let r1_i64 =
+      foreign "constant_r1_int64_t" (Builder.t @-> ptr int64_t @-> size_t @-> returning t)
+
+    let r1_u32 =
+      foreign
+        "constant_r1_uint32_t"
+        (Builder.t @-> ptr uint32_t @-> size_t @-> returning t)
+
+    let r1_u64 =
+      foreign
+        "constant_r1_uint64_t"
+        (Builder.t @-> ptr uint64_t @-> size_t @-> returning t)
+
+    let r1_f32 =
+      foreign "constant_r1_float" (Builder.t @-> ptr float @-> size_t @-> returning t)
+
+    let r1_f64 =
+      foreign "constant_r1_double" (Builder.t @-> ptr double @-> size_t @-> returning t)
+
     let min_value = foreign "op_min_value" (Builder.t @-> int @-> returning t)
     let max_value = foreign "op_max_value" (Builder.t @-> int @-> returning t)
 
@@ -255,6 +278,9 @@ module C (F : Cstubs.FOREIGN) = struct
       foreign
         "op_slice_in_dim"
         (t @-> int64_t @-> int64_t @-> int64_t @-> int64_t @-> returning t)
+
+    let concat_in_dim =
+      foreign "op_concat_in_dim" (t @-> ptr t @-> size_t @-> int64_t @-> returning t)
   end
 
   module Computation = struct

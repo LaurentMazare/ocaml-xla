@@ -65,6 +65,12 @@ module Op : sig
   val r0_u64 : int -> builder:Builder.t -> t
   val r0_f32 : float -> builder:Builder.t -> t
   val r0_f64 : float -> builder:Builder.t -> t
+  val r1_i32 : int array -> builder:Builder.t -> t
+  val r1_i64 : int array -> builder:Builder.t -> t
+  val r1_u32 : int array -> builder:Builder.t -> t
+  val r1_u64 : int array -> builder:Builder.t -> t
+  val r1_f32 : float array -> builder:Builder.t -> t
+  val r1_f64 : float array -> builder:Builder.t -> t
   val min_value : ty:Element_type.t -> builder:Builder.t -> t
   val max_value : ty:Element_type.t -> builder:Builder.t -> t
   val iota1 : ty:Element_type.t -> size:int -> builder:Builder.t -> t
@@ -169,6 +175,7 @@ module Op : sig
     -> dim:int
     -> t
 
+  val concat_in_dim : t -> t list -> dim_index:int -> t
   val reduce : t -> init:t -> f:computation -> dims:int array -> keep_dims:bool -> t
 end
 

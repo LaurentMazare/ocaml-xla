@@ -302,6 +302,30 @@ module Op = struct
   let r0_f32 v ~builder = W.Op.r0_f32 builder v |> of_ptr ~builder
   let r0_f64 v ~builder = W.Op.r0_f64 builder v |> of_ptr ~builder
 
+  let r1 data ~ctype ~f ~builder ~op_fn =
+    let data = carray_map data ~ctype ~f in
+    let t =
+      op_fn builder (CArray.start data) (CArray.length data |> Unsigned.Size_t.of_int)
+      |> of_ptr ~builder
+    in
+    keep_alive data;
+    t
+
+  let r1_i32 d ~builder =
+    r1 d ~builder ~ctype:Ctypes.int32_t ~f:Int32.of_int_exn ~op_fn:W.Op.r1_i32
+
+  let r1_i64 d ~builder =
+    r1 d ~builder ~ctype:Ctypes.int64_t ~f:Int64.of_int_exn ~op_fn:W.Op.r1_i64
+
+  let r1_u32 d ~builder =
+    r1 d ~builder ~ctype:Ctypes.uint32_t ~f:Unsigned.UInt32.of_int ~op_fn:W.Op.r1_u32
+
+  let r1_u64 d ~builder =
+    r1 d ~builder ~ctype:Ctypes.uint64_t ~f:Unsigned.UInt64.of_int ~op_fn:W.Op.r1_u64
+
+  let r1_f32 d ~builder = r1 d ~builder ~ctype:Ctypes.float ~f:Fn.id ~op_fn:W.Op.r1_f32
+  let r1_f64 d ~builder = r1 d ~builder ~ctype:Ctypes.double ~f:Fn.id ~op_fn:W.Op.r1_f64
+
   let min_value ~ty ~builder =
     W.Op.min_value builder (Element_type.to_c_int ty) |> of_ptr ~builder
 
@@ -334,6 +358,21 @@ module Op = struct
       (Int64.of_int_exn stride)
       (Int64.of_int_exn dim)
     |> of_ptr ~builder:t.builder
+
+  let concat_in_dim t other_ts ~dim_index =
+    let rank = rank t in
+    let dim_index = normalize_index ~rank ~dim_index in
+    let other_ptrs = List.map other_ts ~f:(fun t -> t.ptr) |> CArray.of_list W.Op.t in
+    let t =
+      W.Op.concat_in_dim
+        t.ptr
+        (CArray.start other_ptrs)
+        (CArray.length other_ptrs |> Unsigned.Size_t.of_int)
+        (Int64.of_int_exn dim_index)
+      |> of_ptr ~builder:t.builder
+    in
+    keep_alive other_ptrs;
+    t
 
   let dot_general t1 t2 ~lhs_c ~rhs_c ~lhs_b ~rhs_b =
     let lhs_c = carray_i64 lhs_c in

@@ -240,7 +240,22 @@ module CausalSelfAttention = struct
     let on_true = Op.r0_f32 on_true ~builder:(Op.builder mask) |> Op.broadcast ~dims in
     Op.select ~mask ~on_true ~on_false
 
-  let apply_rotary_emb _t _xs ~freqs_cis:_ = failwith "TODO"
+  let apply_rotary_emb xs ~freqs_cis:fs =
+    let dims = Op.dims xs in
+    let init_dims = dims in
+    let ndims = Array.length dims in
+    let dims =
+      Array.init (ndims + 1) ~f:(fun i ->
+        if i = ndims then 2 else if i = ndims - 1 then dims.(i) / 2 else dims.(i))
+    in
+    let xs = Op.reshape xs ~dims in
+    let re_x = Op.slice_in_dim xs ~start_index:0 ~stop_index:1 ~dim:(-1) in
+    let im_x = Op.slice_in_dim xs ~start_index:1 ~stop_index:2 ~dim:(-1) in
+    let re_f = Op.slice_in_dim fs ~start_index:0 ~stop_index:1 ~dim:(-1) in
+    let im_f = Op.slice_in_dim fs ~start_index:1 ~stop_index:2 ~dim:(-1) in
+    let re = Op.sub (Op.mul re_x re_f) (Op.mul im_x im_f) in
+    let im = Op.add (Op.mul re_x im_f) (Op.mul im_x re_f) in
+    Op.concat_in_dim re [ im ] ~dim_index:(-1) |> Op.reshape ~dims:init_dims
 
   let forward t xs ~freqs_cis =
     let builder = Op.builder xs in
@@ -260,8 +275,8 @@ module CausalSelfAttention = struct
     let q = slice_qkv ~start_index:(0 * t.n_embd) ~stop_index:(1 * t.n_embd) in
     let k = slice_qkv ~start_index:(1 * t.n_embd) ~stop_index:(2 * t.n_embd) in
     let v = slice_qkv ~start_index:(2 * t.n_embd) ~stop_index:(3 * t.n_embd) in
-    let q = apply_rotary_emb t q ~freqs_cis in
-    let k = apply_rotary_emb t k ~freqs_cis in
+    let q = apply_rotary_emb q ~freqs_cis in
+    let k = apply_rotary_emb k ~freqs_cis in
     let att =
       Op.matmul q (Op.swap_dims k ~dim_index1:(-2) ~dim_index2:(-1))
       |> Op.mul
@@ -395,21 +410,37 @@ end = struct
   let decode _ _ = failwith "TODO"
 end
 
-let llama_computation ~b_sz =
+let precompute_freqs_cis ~config ~builder =
+  let n_elem = config.Config.n_embd / config.n_head in
+  let theta =
+    Array.init (n_elem / 2) ~f:(fun i ->
+      1. /. Float.(10000. ** (2. *. Float.of_int i /. Float.of_int n_elem)))
+    |> Op.r1_f32 ~builder
+  in
+  let arange = Array.init context_size ~f:Float.of_int |> Op.r1_f32 ~builder in
+  let idx_theta =
+    Op.dot_general arange theta ~lhs_c:[||] ~rhs_c:[||] ~lhs_b:[||] ~rhs_b:[||]
+  in
+  let dims = [| 1; 1; context_size; n_elem / 2; 1 |] in
+  let idx_theta_cos = Op.cos idx_theta |> Op.reshape ~dims in
+  let idx_theta_sin = Op.sin idx_theta |> Op.reshape ~dims in
+  Op.concat_in_dim idx_theta_cos [ idx_theta_sin ] ~dim_index:1
+
+let llama_computation ~config ~b_sz =
   let builder = Builder.create ~name:"llama" in
   let var_default_op_type = if use_gpu then Ty.Bf16 else Ty.F32 in
   let vb = VarBuilder.create ~builder ~var_default_buffer_type:F16 ~var_default_op_type in
-  let llama = Llama.create vb Config.config_7b in
+  let llama = Llama.create vb config in
   let input = VarBuilder.arg vb "tokens" ~ty:U32 ~dims:[| b_sz; context_size |] in
-  let freqs_cis = failwith "TODO: precompute" in
+  let freqs_cis = precompute_freqs_cis ~config ~builder in
   let logits = Llama.forward llama input ~freqs_cis in
   let root =
     Op.div logits (Op.r0_f32 temperature ~builder) |> Op.softmax ~dim_index:(-1)
   in
   Xla.Computation.build ~root, vb
 
-let sample ~start_tokens ~tokenizer ~exe =
-  let vocab_size = Config.config_7b.vocab_size in
+let sample config ~start_tokens ~tokenizer ~exe =
+  let vocab_size = config.Config.vocab_size in
   let tokens = Queue.create () in
   let ba = Bigarray.Array2.create Int32 C_layout 1 context_size in
   for _i = 1 to sample_length do
@@ -448,6 +479,7 @@ let sample ~start_tokens ~tokenizer ~exe =
   Queue.to_list tokens |> T.decode tokenizer
 
 let () =
+  let config = Config.config_7b in
   let tokenizer = T.create ~config_filename:"llama-tokenizer.json" in
   let start_tokens = T.encode tokenizer start_prompt |> Array.of_list in
   let client =
@@ -457,12 +489,15 @@ let () =
   in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
   Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
-  let llama, _vb = time_it "Generated the op" ~f:(fun () -> llama_computation ~b_sz:1) in
+  let llama, _vb =
+    time_it "Generated the op" ~f:(fun () -> llama_computation ~config ~b_sz:1)
+  in
+  (* TODO: load the variables from the npz weight file. *)
   let exe =
     time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client llama)
   in
   for i = 1 to num_samples do
     time_it "Sampled" ~f:(fun () ->
-      let sample = sample ~start_tokens ~tokenizer ~exe in
+      let sample = sample config ~start_tokens ~tokenizer ~exe in
       Stdio.printf "%d ----\n%s\n----\n%!" i sample)
   done
