@@ -195,7 +195,7 @@ module Op = struct
     then dim_index
     else if dim_index + rank >= 0
     then dim_index + rank
-    else [%message "ind out of bounds" (dim_index : int) (rank : int)] |> failwith_s
+    else [%message "dim index out of bounds" (dim_index : int) (rank : int)] |> failwith_s
 
   let normalize_indexes t ~dim_indexes =
     let rank = rank t in

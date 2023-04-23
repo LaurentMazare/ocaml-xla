@@ -89,6 +89,7 @@ module VarBuilder : sig
   val sub : t -> string -> t
   val var : t -> string -> dims:int array -> Op.t
   val arg : t -> string -> ty:Ty.t -> dims:int array -> Op.t
+  val arg_indexes : t -> int list
   val load_buffers : t -> filename:string -> device:Xla.Device.t -> Xla.Buffer.t array
 end = struct
   module NamedVar = struct
@@ -131,6 +132,11 @@ end = struct
     Op.convert v ~ty:t.var_default_op_type
 
   let arg t name ~ty ~dims = var_or_arg t name ~ty ~dims ~is_arg:true
+
+  let arg_indexes t =
+    Queue.to_list t.vars
+    |> List.filter_mapi ~f:(fun i named_var ->
+         if named_var.NamedVar.is_arg then Some i else None)
 
   let load_buffers t ~filename ~device =
     let npz = Xla.Npy.Npz.open_in filename in
@@ -455,7 +461,7 @@ let llama_computation ~config ~b_sz =
   in
   Xla.Computation.build ~root, vb
 
-let sample config ~start_tokens ~tokenizer ~exe ~in_buffers =
+let sample config ~start_tokens ~tokenizer ~exe ~in_buffers ~arg_index ~device =
   let vocab_size = config.Config.vocab_size in
   let tokens = Queue.create () in
   let ba = Bigarray.Array2.create Int32 C_layout 1 context_size in
@@ -471,7 +477,8 @@ let sample config ~start_tokens ~tokenizer ~exe ~in_buffers =
       in
       ba.{0, idx} <- Int32.of_int_exn token
     done;
-    let _ba = Bigarray.genarray_of_array2 ba in
+    let ba = Bigarray.genarray_of_array2 ba in
+    in_buffers.(arg_index) <- Xla.Buffer.of_bigarray ba ~device;
     let buffers = Xla.Executable.execute_b exe in_buffers in
     let probabilities =
       Xla.Buffer.to_literal_sync buffers.(0).(0)
@@ -511,6 +518,11 @@ let () =
     time_it "Load the npz data" ~f:(fun () ->
       VarBuilder.load_buffers vb ~filename:"llama.npz" ~device)
   in
+  let arg_index =
+    match VarBuilder.arg_indexes vb with
+    | [ index ] -> index
+    | indexes -> failwith_s [%message "expected a single index" (indexes : int list)]
+  in
   let exe =
     time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client llama)
   in
@@ -518,6 +530,8 @@ let () =
   let start_tokens = T.encode tokenizer start_prompt |> Array.of_list in
   for i = 1 to num_samples do
     time_it "Sampled" ~f:(fun () ->
-      let sample = sample config ~start_tokens ~tokenizer ~exe ~in_buffers in
+      let sample =
+        sample config ~start_tokens ~tokenizer ~exe ~in_buffers ~arg_index ~device
+      in
       Stdio.printf "%d ----\n%s\n----\n%!" i sample)
   done
