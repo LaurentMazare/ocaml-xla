@@ -351,13 +351,15 @@ module Op = struct
     keep_alive dims;
     t
 
-  let slice_in_dim ?(stride = 1) ?(start_index = 0) t ~stop_index ~dim =
+  let slice_in_dim ?(stride = 1) ?(start_index = 0) t ~stop_index ~dim_index =
+    let rank = rank t in
+    let dim_index = normalize_index ~rank ~dim_index in
     W.Op.slice_in_dim
       t.ptr
       (Int64.of_int_exn start_index)
       (Int64.of_int_exn stop_index)
       (Int64.of_int_exn stride)
-      (Int64.of_int_exn dim)
+      (Int64.of_int_exn dim_index)
     |> of_ptr ~builder:t.builder
 
   let concat_in_dim t other_ts ~dim_index =

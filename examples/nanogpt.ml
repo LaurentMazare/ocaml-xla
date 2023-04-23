@@ -237,7 +237,7 @@ module CausalSelfAttention = struct
     in
     let qkv = Linear.forward t.c_attn xs in
     let slice_qkv ~start_index ~stop_index =
-      Op.slice_in_dim qkv ~start_index ~stop_index ~dim:2
+      Op.slice_in_dim qkv ~start_index ~stop_index ~dim_index:2
       |> Op.reshape ~dims:[| b_sz; t_sz; t.n_head; c_sz / t.n_head |]
       |> Op.swap_dims ~dim_index1:1 ~dim_index2:2
     in
@@ -359,7 +359,7 @@ module Gpt = struct
     List.fold t.blocks ~init:(Op.add tok_emb pos_emb) ~f:(fun acc b ->
       Block.forward b acc)
     |> LayerNorm.forward t.ln_f
-    |> Op.slice_in_dim ~start_index:(t_sz - 1) ~stop_index:t_sz ~dim:1
+    |> Op.slice_in_dim ~start_index:(t_sz - 1) ~stop_index:t_sz ~dim_index:1
     |> Linear.forward t.lm_head
 end
 

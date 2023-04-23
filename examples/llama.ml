@@ -263,10 +263,10 @@ module CausalSelfAttention = struct
         if i = ndims then 2 else if i = ndims - 1 then dims.(i) / 2 else dims.(i))
     in
     let xs = Op.reshape xs ~dims in
-    let re_x = Op.slice_in_dim xs ~start_index:0 ~stop_index:1 ~dim:(-1) in
-    let im_x = Op.slice_in_dim xs ~start_index:1 ~stop_index:2 ~dim:(-1) in
-    let re_f = Op.slice_in_dim fs ~start_index:0 ~stop_index:1 ~dim:(-1) in
-    let im_f = Op.slice_in_dim fs ~start_index:1 ~stop_index:2 ~dim:(-1) in
+    let re_x = Op.slice_in_dim xs ~start_index:0 ~stop_index:1 ~dim_index:(-1) in
+    let im_x = Op.slice_in_dim xs ~start_index:1 ~stop_index:2 ~dim_index:(-1) in
+    let re_f = Op.slice_in_dim fs ~start_index:0 ~stop_index:1 ~dim_index:(-1) in
+    let im_f = Op.slice_in_dim fs ~start_index:1 ~stop_index:2 ~dim_index:(-1) in
     let re = Op.sub (Op.mul re_x re_f) (Op.mul im_x im_f) in
     let im = Op.add (Op.mul re_x im_f) (Op.mul im_x re_f) in
     Op.concat_in_dim re [ im ] ~dim_index:(-1) |> Op.reshape ~dims:init_dims
@@ -282,7 +282,7 @@ module CausalSelfAttention = struct
     in
     let qkv = Linear.forward t.c_attn xs in
     let slice_qkv ~start_index ~stop_index =
-      Op.slice_in_dim qkv ~start_index ~stop_index ~dim:2
+      Op.slice_in_dim qkv ~start_index ~stop_index ~dim_index:2
       |> Op.reshape ~dims:[| b_sz; t_sz; t.n_head; c_sz / t.n_head |]
       |> Op.swap_dims ~dim_index1:1 ~dim_index2:2
     in
@@ -405,7 +405,7 @@ module Llama = struct
     List.fold t.blocks ~init:(Embedding.forward t.wte xs) ~f:(fun acc b ->
       Block.forward b acc ~freqs_cis)
     |> RmsNorm.forward t.ln_f
-    |> Op.slice_in_dim ~start_index:(t_sz - 1) ~stop_index:t_sz ~dim:1
+    |> Op.slice_in_dim ~start_index:(t_sz - 1) ~stop_index:t_sz ~dim_index:1
     |> Linear.forward t.lm_head
 end
 
@@ -424,6 +424,8 @@ end = struct
   let decode _ _ = failwith "TODO"
 end
 
+(* TODO: Maybe we should actually generate the values for this in case the XLA compiler
+   doesn't manage to do the constant propagation. *)
 let precompute_freqs_cis ~config ~builder =
   let n_elem = config.Config.n_embd / config.n_head in
   let theta =
@@ -438,7 +440,7 @@ let precompute_freqs_cis ~config ~builder =
   let dims = [| 1; 1; context_size; n_elem / 2; 1 |] in
   let idx_theta_cos = Op.cos idx_theta |> Op.reshape ~dims in
   let idx_theta_sin = Op.sin idx_theta |> Op.reshape ~dims in
-  Op.concat_in_dim idx_theta_cos [ idx_theta_sin ] ~dim_index:1
+  Op.concat_in_dim idx_theta_cos [ idx_theta_sin ] ~dim_index:(-1)
 
 let llama_computation ~config ~b_sz =
   let builder = Builder.create ~name:"llama" in

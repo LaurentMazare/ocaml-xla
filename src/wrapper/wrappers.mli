@@ -172,7 +172,7 @@ module Op : sig
     -> ?start_index:int
     -> t
     -> stop_index:int
-    -> dim:int
+    -> dim_index:int
     -> t
 
   val concat_in_dim : t -> t list -> dim_index:int -> t
