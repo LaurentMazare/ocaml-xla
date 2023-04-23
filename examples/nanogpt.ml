@@ -85,7 +85,7 @@ end = struct
     }
 
   let create_npz filename =
-    let literals = Xla.Npy.Npz.read_all filename in
+    let literals = Xla.Npy.Npz.read_all_literal filename in
     { literals; rev_path = [] }
 
   let sub t dir_name = { literals = t.literals; rev_path = dir_name :: t.rev_path }

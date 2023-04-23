@@ -218,6 +218,11 @@ module PjRtBuffer : sig
   val on_device_shape : t -> Shape.t
   val to_literal_sync : t -> Literal.t
   val copy_to_device : t -> device:PjRtDevice.t -> t
+
+  val of_bigarray
+    :  (_, _, Bigarray.c_layout) Bigarray.Genarray.t
+    -> device:PjRtDevice.t
+    -> t
 end
 
 module PjRtLoadedExecutable : sig

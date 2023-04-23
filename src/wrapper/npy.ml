@@ -260,10 +260,16 @@ let read_mmap filename ~shared =
   in
   if header.fortran_order then build Fortran_layout else build C_layout
 
-let read filename =
+let read_literal filename =
   let (P array) = read_mmap filename ~shared:false in
   match Bigarray.Genarray.layout array with
   | C_layout -> Literal.of_bigarray array
+  | Fortran_layout -> [%message "fortran layout not supported" filename] |> failwith_s
+
+let read_buffer filename ~device =
+  let (P array) = read_mmap filename ~shared:false in
+  match Bigarray.Genarray.layout array with
+  | C_layout -> Wrappers.PjRtBuffer.of_bigarray array ~device
   | Fortran_layout -> [%message "fortran layout not supported" filename] |> failwith_s
 
 module Npz = struct
@@ -297,7 +303,7 @@ module Npz = struct
 
   let close_in = Zip.close_in
 
-  let read ?suffix t array_name =
+  let read ~read_fn ?suffix t array_name =
     let array_name = maybe_add_suffix array_name ~suffix in
     let entry =
       try Zip.find_entry t array_name with
@@ -305,18 +311,27 @@ module Npz = struct
     in
     let tmp_file = Caml.Filename.temp_file "ocaml-npz" ".tmp" in
     Zip.copy_entry_to_file t entry tmp_file;
-    let data = read tmp_file in
-    Caml.Sys.remove tmp_file;
+    let data =
+      Exn.protect
+        ~f:(fun () -> read_fn tmp_file)
+        ~finally:(fun () -> Caml.Sys.remove tmp_file)
+    in
     data
 
-  let read_all filename =
+  let read_literal = read ~read_fn:read_literal
+  let read_buffer ?suffix t n ~device = read ?suffix t n ~read_fn:(read_buffer ~device)
+
+  let read_all filename ~read_fn =
     let t = open_in filename in
     Exn.protect
       ~f:(fun () ->
         entries t
-        |> List.map ~f:(fun entry -> entry, read t entry)
+        |> List.map ~f:(fun entry -> entry, read_fn t entry)
         |> Hashtbl.of_alist_exn (module String))
       ~finally:(fun () -> close_in t)
+
+  let read_all_literal f = read_all f ~read_fn:read_literal
+  let read_all_buffer f ~device = read_all f ~read_fn:(read_buffer ~device)
 
   type out_file = Zip.out_file
 

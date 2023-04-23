@@ -7,18 +7,32 @@ open! Base
 *)
 val write : ?header_len:int -> Literal.t -> string -> unit
 
-val read : string -> Literal.t
+val read_literal : string -> Literal.t
+val read_buffer : string -> device:Device.t -> Wrappers.PjRtBuffer.t
 
 module Npz : sig
   type in_file
 
   val open_in : string -> in_file
-  val read : ?suffix:string -> in_file -> string -> Literal.t
+  val read_literal : ?suffix:string -> in_file -> string -> Literal.t
+
+  val read_buffer
+    :  ?suffix:string
+    -> in_file
+    -> string
+    -> device:Device.t
+    -> Wrappers.PjRtBuffer.t
+
   val entries : in_file -> string list
   val close_in : in_file -> unit
 
   (** Reads all the tensors in a npz file. *)
-  val read_all : string -> (string, Literal.t) Hashtbl.t
+  val read_all_literal : string -> (string, Literal.t) Hashtbl.t
+
+  val read_all_buffer
+    :  string
+    -> device:Device.t
+    -> (string, Wrappers.PjRtBuffer.t) Hashtbl.t
 
   type out_file
 

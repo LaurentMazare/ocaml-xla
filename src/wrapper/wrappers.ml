@@ -40,6 +40,17 @@ module Shape = struct
     Array.init dsize ~f:(W.Shape.dimensions t)
 
   let ty t = W.Shape.element_type t |> Element_type.of_c_int
+
+  let check_same_dims_and_kind (type a b) t (ba : (a, b, _) Bigarray.Genarray.t) =
+    (match Bigarray.Genarray.layout ba with
+     | C_layout -> ()
+     | _ -> .);
+    let dims = dimensions t in
+    let ba_dims = Bigarray.Genarray.dims ba in
+    if not (Array.equal Int.equal ba_dims dims)
+    then
+      failwith_s [%message "dims do not match" (ba_dims : int array) (dims : int array)];
+    Element_type.check_exn (ty t) (Bigarray.Genarray.kind ba)
 end
 
 module Builder = struct
@@ -105,17 +116,7 @@ module Literal = struct
     W.Literal.shape t ptr;
     Ctypes.( !@ ) ptr |> Shape.of_ptr
 
-  let check_same_dims_and_kind (type a b) t (ba : (a, b, _) Bigarray.Genarray.t) =
-    (match Bigarray.Genarray.layout ba with
-     | C_layout -> ()
-     | _ -> .);
-    let shape = shape t in
-    let dims = Shape.dimensions shape in
-    let ba_dims = Bigarray.Genarray.dims ba in
-    if not (Array.equal Int.equal ba_dims dims)
-    then
-      failwith_s [%message "dims do not match" (ba_dims : int array) (dims : int array)];
-    Element_type.check_exn (Shape.ty shape) (Bigarray.Genarray.kind ba)
+  let check_same_dims_and_kind t ba = Shape.check_same_dims_and_kind (shape t) ba
 
   let copy_from_bigarray t ~src =
     check_same_dims_and_kind t src;
@@ -667,6 +668,37 @@ module PjRtBuffer = struct
     let status = W.PjRtBuffer.to_literal_sync t.ptr ptr in
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> Literal.of_ptr
+
+  let of_bigarray (type a b) (src : (a, b, Bigarray.c_layout) Bigarray.Genarray.t) ~device
+    =
+    let ty : Element_type.t =
+      match Bigarray.Genarray.kind src with
+      | Char | Int8_unsigned -> U8
+      | Int16_unsigned -> U16
+      | Int8_signed -> S8
+      | Int16_signed -> S16
+      | Int32 -> S32
+      | Int64 -> S64
+      | Float32 -> F32
+      | Float64 -> F64
+      | _ba_kind -> failwith_s [%message "unsupported bigarray type"]
+    in
+    let dims = Bigarray.Genarray.dims src |> carray_i64 in
+    let ptr = Ctypes.(allocate_n (ptr W.PjRtBuffer.struct_) ~count:1) in
+    let status =
+      W.PjRtBuffer.from_host_buffer
+        device.PjRtDevice.client
+        device.PjRtDevice.ptr
+        (Ctypes.bigarray_start Ctypes.genarray src |> Ctypes.to_voidp)
+        (Element_type.to_c_int ty)
+        (CArray.length dims)
+        (CArray.start dims)
+        ptr
+    in
+    keep_alive src;
+    keep_alive dims;
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> of_ptr ~client:device.client
 end
 
 module PjRtLoadedExecutable = struct
