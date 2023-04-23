@@ -393,7 +393,7 @@ let sample ~start_tokens ~tokenizer ~exe =
       ba.{0, idx} <- Int32.of_int_exn token
     done;
     let ba = Bigarray.genarray_of_array2 ba in
-    let buffers = Xla.Executable.execute exe [ Literal.of_bigarray ba ] in
+    let buffers = Xla.Executable.execute exe [| Literal.of_bigarray ba |] in
     let probabilities =
       Xla.Buffer.to_literal_sync buffers.(0).(0)
       |> Literal.to_bigarray ~kind:Float32

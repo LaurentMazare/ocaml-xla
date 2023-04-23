@@ -8,7 +8,7 @@ let () =
   let computation = Xla.Computation.build ~root:sum in
   Stdio.printf "Computation %s\n" (Xla.Computation.name computation);
   let exe = Xla.Executable.compile cpu computation in
-  let buffers = Xla.Executable.execute exe [] in
+  let buffers = Xla.Executable.execute exe [||] in
   let buffers = buffers.(0) in
   Stdio.printf "Got %d buffers\n" (Array.length buffers);
   let literal = Xla.Buffer.to_literal_sync buffers.(0) in

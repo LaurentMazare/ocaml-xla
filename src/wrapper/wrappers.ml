@@ -739,7 +739,7 @@ module PjRtLoadedExecutable = struct
     loop [] ptr
 
   let execute t args =
-    let args = CArray.of_list W.Literal.t args in
+    let args = carray_map args ~ctype:W.Literal.t ~f:Fn.id in
     let ptr = Ctypes.(allocate_n (ptr (ptr (ptr W.PjRtBuffer.struct_))) ~count:1) in
     let status =
       W.PjRtLoadedExecutable.execute t.ptr (CArray.start args) (CArray.length args) ptr
@@ -749,9 +749,7 @@ module PjRtLoadedExecutable = struct
     execute_results_to_list ptr ~client:t.client
 
   let execute_b t args =
-    let args =
-      List.map args ~f:(fun b -> b.PjRtBuffer.ptr) |> CArray.of_list W.PjRtBuffer.t
-    in
+    let args = carray_map args ~ctype:W.PjRtBuffer.t ~f:(fun b -> b.PjRtBuffer.ptr) in
     let ptr = Ctypes.(allocate_n (ptr (ptr (ptr W.PjRtBuffer.struct_))) ~count:1) in
     let status =
       W.PjRtLoadedExecutable.execute_b t.ptr (CArray.start args) (CArray.length args) ptr

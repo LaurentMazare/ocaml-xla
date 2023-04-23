@@ -89,6 +89,7 @@ module VarBuilder : sig
   val sub : t -> string -> t
   val var : t -> string -> dims:int array -> Op.t
   val arg : t -> string -> ty:Ty.t -> dims:int array -> Op.t
+  val load_buffers : t -> filename:string -> device:Xla.Device.t -> Xla.Buffer.t array
 end = struct
   module NamedVar = struct
     type t =
@@ -130,6 +131,19 @@ end = struct
     Op.convert v ~ty:t.var_default_op_type
 
   let arg t name ~ty ~dims = var_or_arg t name ~ty ~dims ~is_arg:true
+
+  let load_buffers t ~filename ~device =
+    let npz = Xla.Npy.Npz.open_in filename in
+    Exn.protect
+      ~f:(fun () ->
+        Queue.to_array t.vars
+        |> Array.map ~f:(fun (named_var : NamedVar.t) ->
+             if named_var.is_arg
+             then
+               Literal.create ~ty:named_var.ty ~dims:named_var.dims
+               |> Xla.Buffer.of_host_literal ~device
+             else Xla.Npy.Npz.read_buffer npz named_var.path ~device))
+      ~finally:(fun () -> Xla.Npy.Npz.close_in npz)
 end
 
 let time_it str ~f =
@@ -439,7 +453,7 @@ let llama_computation ~config ~b_sz =
   in
   Xla.Computation.build ~root, vb
 
-let sample config ~start_tokens ~tokenizer ~exe =
+let sample config ~start_tokens ~tokenizer ~exe ~in_buffers =
   let vocab_size = config.Config.vocab_size in
   let tokens = Queue.create () in
   let ba = Bigarray.Array2.create Int32 C_layout 1 context_size in
@@ -455,8 +469,8 @@ let sample config ~start_tokens ~tokenizer ~exe =
       in
       ba.{0, idx} <- Int32.of_int_exn token
     done;
-    let ba = Bigarray.genarray_of_array2 ba in
-    let buffers = Xla.Executable.execute exe [ Literal.of_bigarray ba ] in
+    let _ba = Bigarray.genarray_of_array2 ba in
+    let buffers = Xla.Executable.execute_b exe in_buffers in
     let probabilities =
       Xla.Buffer.to_literal_sync buffers.(0).(0)
       |> Literal.to_bigarray ~kind:Float32
@@ -480,24 +494,28 @@ let sample config ~start_tokens ~tokenizer ~exe =
 
 let () =
   let config = Config.config_7b in
-  let tokenizer = T.create ~config_filename:"llama-tokenizer.json" in
-  let start_tokens = T.encode tokenizer start_prompt |> Array.of_list in
   let client =
     if use_gpu
     then Xla.Client.gpu ~memory_fraction:0.95 ~preallocate:false
     else Xla.Client.cpu ()
   in
+  let device = Xla.Client.addressable_devices client |> List.hd_exn in
   Stdio.printf "Platform name: %s\n" (Xla.Client.platform_name client);
   Stdio.printf "Platform version: %s\n%!" (Xla.Client.platform_version client);
-  let llama, _vb =
+  let llama, vb =
     time_it "Generated the op" ~f:(fun () -> llama_computation ~config ~b_sz:1)
   in
-  (* TODO: load the variables from the npz weight file. *)
+  let in_buffers =
+    time_it "Load the npz data" ~f:(fun () ->
+      VarBuilder.load_buffers vb ~filename:"llama.npz" ~device)
+  in
   let exe =
     time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client llama)
   in
+  let tokenizer = T.create ~config_filename:"llama-tokenizer.json" in
+  let start_tokens = T.encode tokenizer start_prompt |> Array.of_list in
   for i = 1 to num_samples do
     time_it "Sampled" ~f:(fun () ->
-      let sample = sample config ~start_tokens ~tokenizer ~exe in
+      let sample = sample config ~start_tokens ~tokenizer ~exe ~in_buffers in
       Stdio.printf "%d ----\n%s\n----\n%!" i sample)
   done

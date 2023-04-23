@@ -34,25 +34,25 @@ let eval ~args ~f =
 
 let%expect_test _ =
   set_log_level ();
-  eval ~args:[] ~f:(fun ~builder ->
+  eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.add (r0_f32 39.) (r0_f32 3.));
   [%expect {|
         ((dims ()) (ba 42))
   |}];
-  eval ~args:[] ~f:(fun ~builder ->
+  eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.sub (r0_f32 39.) (r0_f32 3.));
   [%expect {|
         ((dims ()) (ba 36))
   |}];
-  eval ~args:[] ~f:(fun ~builder ->
+  eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.mul (r0_f32 39.) (r0_f32 3.));
   [%expect {|
         ((dims ()) (ba 117))
   |}];
-  eval ~args:[] ~f:(fun ~builder ->
+  eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.div (r0_f32 39.) (r0_f32 3.));
   [%expect {|

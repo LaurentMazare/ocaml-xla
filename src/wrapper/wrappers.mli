@@ -229,6 +229,6 @@ module PjRtLoadedExecutable : sig
   type t
 
   val compile : PjRtClient.t -> Computation.t -> t
-  val execute : t -> Literal.t list -> PjRtBuffer.t array array
-  val execute_b : t -> PjRtBuffer.t list -> PjRtBuffer.t array array
+  val execute : t -> Literal.t array -> PjRtBuffer.t array array
+  val execute_b : t -> PjRtBuffer.t array -> PjRtBuffer.t array array
 end
