@@ -40,4 +40,4 @@ jobs:
 
       - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune runtest
 
-      - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune exec example/basics.exe
+      - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune exec examples/basics.exe
