@@ -4,8 +4,8 @@
    This is based on nanoGPT in a similar way to:
    https://github.com/Lightning-AI/lit-llama/blob/main/lit_llama/model.py
   
-   The tokenizer config can be retrieved from:
-   https://huggingface.co/hf-internal-testing/llama-tokenizer/blob/main/tokenizer.json
+   The tokenizer config can be retrieved via:
+    wget https://huggingface.co/hf-internal-testing/llama-tokenizer/raw/main/tokenizer.json -O llama-tokenizer.json
   
    In order to convert the llama weights to a .safetensors file, run:
    python examples/convert_llama_checkpoint.py ..../LLaMA/7B/consolidated.00.pth
@@ -16,6 +16,7 @@ module Builder = Xla.Builder
 module Ty = Xla.Element_type
 module Literal = Xla.Literal
 module Op = Xla.Op
+module Tokenizer = Sentencepiece_tokenizer
 
 let temperature = 1.0
 let use_gpu = false
@@ -420,21 +421,6 @@ module Llama = struct
     |> Linear.forward t.lm_head
 end
 
-(* TODO: implement the sentencepiece tokenizer *)
-module T : sig
-  type t
-
-  val create : config_filename:string -> t
-  val encode : t -> string -> int list
-  val decode : t -> int list -> string
-end = struct
-  type t
-
-  let create ~config_filename:_ = failwith "TODO"
-  let encode _ _ = failwith "TODO"
-  let decode _ _ = failwith "TODO"
-end
-
 (* TODO: Maybe we should actually generate the values for this in case the XLA compiler
    doesn't manage to do the constant propagation. *)
 let precompute_freqs_cis ~config ~builder =
@@ -504,7 +490,7 @@ let sample config ~start_tokens ~tokenizer ~exe ~in_buffers ~arg_index ~device =
     let token = Option.value !token ~default:0 in
     Queue.enqueue tokens token
   done;
-  Queue.to_list tokens |> T.decode tokenizer
+  Queue.to_list tokens |> Tokenizer.decode tokenizer
 
 let () =
   let config = Config.config_7b in
@@ -523,6 +509,7 @@ let () =
     time_it "Load the safetensors data" ~f:(fun () ->
       VarBuilder.load_buffers vb ~filename:"llama.safetensors" ~device)
   in
+  Caml.Gc.full_major ();
   let arg_index =
     match VarBuilder.arg_indexes vb with
     | [ index ] -> index
@@ -531,8 +518,8 @@ let () =
   let exe =
     time_it "Compiled the model" ~f:(fun () -> Xla.Executable.compile client llama)
   in
-  let tokenizer = T.create ~config_filename:"llama-tokenizer.json" in
-  let start_tokens = T.encode tokenizer start_prompt |> Array.of_list in
+  let tokenizer = Tokenizer.create ~config_filename:"llama-tokenizer.json" in
+  let start_tokens = Tokenizer.encode tokenizer start_prompt |> Array.of_list in
   for i = 1 to num_samples do
     time_it "Sampled" ~f:(fun () ->
       let sample =
