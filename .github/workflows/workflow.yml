@@ -1,0 +1,43 @@
+name: Main workflow
+
+on:
+  - pull_request
+  - push
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+        ocaml-compiler:
+          - 5.0.0
+          - 4.14.0
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Use OCaml ${{ matrix.ocaml-compiler }}
+        uses: ocaml/setup-ocaml@v2
+        with:
+          ocaml-compiler: ${{ matrix.ocaml-compiler }}
+
+      - run: opam pin add xla.dev . --no-action
+
+      - run: opam depext xla --yes --with-doc --with-test
+
+      - run: opam install . --deps-only --with-doc --with-test
+
+      - run: wget https://github.com/elixir-nx/xla/releases/download/v0.4.4/xla_extension-aarch64-linux-gnu-cpu.tar.gz
+
+      - run: tar -xzf xla_extension-aarch64-linux-gnu-cpu.tar.gz
+
+      - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune build
+
+      - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune runtest
+
+      - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune exec example/basics.exe
