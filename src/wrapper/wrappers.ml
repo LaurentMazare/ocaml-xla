@@ -151,6 +151,7 @@ module Literal = struct
     in
     let dims = Bigarray.Genarray.dims src |> carray_i64 in
     let t =
+      (* TODO: check that this actually makes a copy. *)
       W.Literal.create_from_shape_and_data
         (Element_type.to_c_int ty)
         (CArray.start dims)
@@ -163,7 +164,7 @@ module Literal = struct
     t
 
   let of_bigarray_bytes
-    ~(src : (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
+    ~(src : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
     ~ty
     ~dims
     =
@@ -184,6 +185,7 @@ module Literal = struct
       |> failwith_s;
     let dims = carray_i64 dims in
     let t =
+      (* TODO: check that this actually makes a copy. *)
       W.Literal.create_from_shape_and_data
         (Element_type.to_c_int ty)
         (CArray.start dims)
@@ -736,7 +738,7 @@ module PjRtBuffer = struct
     Ctypes.( !@ ) ptr |> of_ptr ~client:device.client
 
   let of_bigarray_bytes
-    ~(src : (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
+    ~(src : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
     ~ty
     ~dims
     ~device

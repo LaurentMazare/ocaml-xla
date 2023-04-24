@@ -30,7 +30,7 @@ module Literal : sig
 
   (* Bigarray interop. *)
   val of_bigarray_bytes
-    :  src:(char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t
+    :  src:(int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t
     -> ty:Element_type.t
     -> dims:int array
     -> t
@@ -226,7 +226,7 @@ module PjRtBuffer : sig
   val copy_to_device : t -> device:PjRtDevice.t -> t
 
   val of_bigarray_bytes
-    :  src:(char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t
+    :  src:(int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t
     -> ty:Element_type.t
     -> dims:int array
     -> device:PjRtDevice.t

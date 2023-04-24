@@ -9,7 +9,7 @@ let map_file file_descr ~pos ~len =
   Unix.map_file
     file_descr
     ~pos:(Int_conversions.int_to_int64 pos)
-    Bigarray.Char
+    Bigarray.Int8_unsigned
     C_layout
     false
     [| len |]
@@ -92,7 +92,12 @@ let read ?only filename ~f =
               tensor_name
               (Yojson.Safe.to_string dtype)
         in
-        let src = map_file fd ~pos:start_offset ~len:(stop_offset - start_offset) in
+        let src =
+          map_file
+            fd
+            ~pos:(8 + header_size + start_offset)
+            ~len:(stop_offset - start_offset)
+        in
         Some (tensor_name, f ~src ~ty ~dims)
       | _, `Assoc _ -> None
       | tensor_name, _ ->
