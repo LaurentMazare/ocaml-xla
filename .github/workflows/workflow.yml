@@ -32,9 +32,9 @@ jobs:
 
       - run: opam install . --deps-only --with-doc --with-test
 
-      - run: wget https://github.com/elixir-nx/xla/releases/download/v0.4.4/xla_extension-aarch64-linux-gnu-cpu.tar.gz
+      - run: wget https://github.com/elixir-nx/xla/releases/download/v0.4.4/xla_extension-x86_64-linux-gnu-cpu.tar.gz
 
-      - run: tar -xzf xla_extension-aarch64-linux-gnu-cpu.tar.gz
+      - run: tar -xzf xla_extension-x86_64-linux-gnu-cpu.tar.gz
 
       - run: XLA_EXTENSION_DIR=$PWD/xla_extension opam exec -- dune build
 
