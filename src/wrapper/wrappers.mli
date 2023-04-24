@@ -29,6 +29,12 @@ module Literal : sig
   val shape : t -> Shape.t
 
   (* Bigarray interop. *)
+  val of_bigarray_bytes
+    :  src:(char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t
+    -> ty:Element_type.t
+    -> dims:int array
+    -> t
+
   val of_bigarray : (_, _, Bigarray.c_layout) Bigarray.Genarray.t -> t
   val copy_from_bigarray : t -> src:(_, _, Bigarray.c_layout) Bigarray.Genarray.t -> unit
   val copy_to_bigarray : t -> dst:(_, _, Bigarray.c_layout) Bigarray.Genarray.t -> unit
@@ -218,6 +224,13 @@ module PjRtBuffer : sig
   val on_device_shape : t -> Shape.t
   val to_literal_sync : t -> Literal.t
   val copy_to_device : t -> device:PjRtDevice.t -> t
+
+  val of_bigarray_bytes
+    :  src:(char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t
+    -> ty:Element_type.t
+    -> dims:int array
+    -> device:PjRtDevice.t
+    -> t
 
   val of_bigarray
     :  (_, _, Bigarray.c_layout) Bigarray.Genarray.t

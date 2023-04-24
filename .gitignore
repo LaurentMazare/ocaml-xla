@@ -33,3 +33,4 @@ xla_extension*
 vocab.bpe
 encoder.json
 *.npz
+*.safetensors

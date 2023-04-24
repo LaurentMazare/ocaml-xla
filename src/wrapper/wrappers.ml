@@ -162,6 +162,39 @@ module Literal = struct
     keep_alive dims;
     t
 
+  let of_bigarray_bytes
+    ~(src : (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
+    ~ty
+    ~dims
+    =
+    let size_in_bytes = Bigarray.Genarray.size_in_bytes src in
+    let expected_size_in_bytes =
+      match Element_type.size_in_bytes ty with
+      | Some size -> Array.fold dims ~init:size ~f:( * )
+      | None -> [%message "unsupported element type" (ty : Element_type.t)] |> failwith_s
+    in
+    if size_in_bytes <> expected_size_in_bytes
+    then
+      [%message
+        "size mismatch"
+          (size_in_bytes : int)
+          (expected_size_in_bytes : int)
+          (dims : int array)
+          (ty : Element_type.t)]
+      |> failwith_s;
+    let dims = carray_i64 dims in
+    let t =
+      W.Literal.create_from_shape_and_data
+        (Element_type.to_c_int ty)
+        (CArray.start dims)
+        (CArray.length dims |> Unsigned.Size_t.of_int)
+        (Ctypes.bigarray_start Ctypes.genarray src |> Ctypes.to_voidp)
+        (Bigarray.Genarray.size_in_bytes src |> Unsigned.Size_t.of_int)
+    in
+    keep_alive src;
+    keep_alive dims;
+    t
+
   let r0_i32 v = W.Literal.r0_i32 (Int32.of_int_exn v)
   let r0_i64 v = W.Literal.r0_i64 (Int64.of_int_exn v)
   let r0_u32 v = W.Literal.r0_u32 (Unsigned.UInt32.of_int v)
@@ -686,6 +719,44 @@ module PjRtBuffer = struct
       | _ba_kind -> failwith_s [%message "unsupported bigarray type"]
     in
     let dims = Bigarray.Genarray.dims src |> carray_i64 in
+    let ptr = Ctypes.(allocate_n (ptr W.PjRtBuffer.struct_) ~count:1) in
+    let status =
+      W.PjRtBuffer.from_host_buffer
+        device.PjRtDevice.client
+        device.PjRtDevice.ptr
+        (Ctypes.bigarray_start Ctypes.genarray src |> Ctypes.to_voidp)
+        (Element_type.to_c_int ty)
+        (CArray.length dims)
+        (CArray.start dims)
+        ptr
+    in
+    keep_alive src;
+    keep_alive dims;
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> of_ptr ~client:device.client
+
+  let of_bigarray_bytes
+    ~(src : (char, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
+    ~ty
+    ~dims
+    ~device
+    =
+    let size_in_bytes = Bigarray.Genarray.size_in_bytes src in
+    let expected_size_in_bytes =
+      match Element_type.size_in_bytes ty with
+      | Some size -> Array.fold dims ~init:size ~f:( * )
+      | None -> [%message "unsupported element type" (ty : Element_type.t)] |> failwith_s
+    in
+    if size_in_bytes <> expected_size_in_bytes
+    then
+      [%message
+        "size mismatch"
+          (size_in_bytes : int)
+          (expected_size_in_bytes : int)
+          (dims : int array)
+          (ty : Element_type.t)]
+      |> failwith_s;
+    let dims = carray_i64 dims in
     let ptr = Ctypes.(allocate_n (ptr W.PjRtBuffer.struct_) ~count:1) in
     let status =
       W.PjRtBuffer.from_host_buffer

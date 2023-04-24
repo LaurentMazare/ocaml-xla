@@ -2,6 +2,7 @@
 import sys
 import torch
 import numpy as np
+from safetensors.numpy import save_file
 from typing import Dict
 from pathlib import Path
 
@@ -53,14 +54,14 @@ def convert_state_dict(state_dict: Dict[str, torch.Tensor], dtype: torch.dtype =
         converted[f"transformer.h.{layer_idx}.rms_2.scale"] = get_and_remove(f"layers.{layer_idx}.ffn_norm.weight")
     return converted
 
-def convert_weights(llama_ckpt, *, output_npz: Path = Path("llama.npz"), dtype: str = "float16") -> None:
+def convert_weights(llama_ckpt, *, output_file: Path = Path("llama.safetensors"), dtype: str = "float16") -> None:
     dt = getattr(torch, dtype, None)
     if not isinstance(dt, torch.dtype):
         raise ValueError(f"{dtype} is not a valid dtype.")
     checkpoint = torch.load(llama_ckpt, map_location="cpu")
     converted = convert_state_dict(checkpoint, dtype=dt)
     del checkpoint
-    np.savez(output_npz, **converted)
+    save_file(converted, output_file)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
