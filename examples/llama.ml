@@ -456,7 +456,7 @@ let sample config ~start_tokens ~tokenizer ~exe ~in_buffers ~arg_index ~device =
   let vocab_size = config.Config.vocab_size in
   let tokens = Queue.create () in
   let ba = Bigarray.Array2.create Int32 C_layout 1 context_size in
-  for _i = 1 to sample_length do
+  for i = 1 to sample_length do
     for idx = 0 to context_size - 1 do
       let tokens_index = Queue.length tokens - context_size + idx in
       let token =
@@ -488,6 +488,7 @@ let sample config ~start_tokens ~tokenizer ~exe ~in_buffers ~arg_index ~device =
       if Float.is_non_positive !p && Option.is_none !token then token := Some i
     done;
     let token = Option.value !token ~default:0 in
+    Stdio.printf "%d %d %s\n%!" i token (Tokenizer.decode tokenizer [ token ]);
     Queue.enqueue tokens token
   done;
   Queue.to_list tokens |> Tokenizer.decode tokenizer

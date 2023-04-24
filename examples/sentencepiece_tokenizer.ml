@@ -1,5 +1,8 @@
-(* Very naive implementation of the sentencepiece tokenizer. *)
+(* Very naive implementation of the sentencepiece tokenizer, this only supports
+   BPE models and not the unigram ones. *)
 open! Base
+
+let failwith_s s = Sexp.to_string s |> failwith
 
 module String_pair = struct
   module T = struct
@@ -18,7 +21,7 @@ let delim = "▁"
 
 type t =
   { encoder : (string, int, String.comparator_witness) Map.t
-  ; decoder : string array
+  ; decoder : (int, string, Int.comparator_witness) Map.t
   ; bpe_ranks : (String_pair.t, int, String_pair.comparator_witness) Map.t
   }
 
@@ -76,5 +79,85 @@ let encode =
     String.Search_pattern.replace_all whitespace_pattern ~in_:(" " ^ str) ~with_:delim
     |> bpe t
 
-let decode t ids = List.map ids ~f:(fun i -> t.decoder.(i)) |> String.concat ~sep:""
-let create ~config_filename:_ = failwith "TODO"
+let decode t ids =
+  List.map ids ~f:(fun i -> Map.find_exn t.decoder i) |> String.concat ~sep:""
+
+let create ~config_filename =
+  let to_assoc_exn ~key = function
+    | None -> [%message "cannot find" key config_filename] |> failwith_s
+    | Some (`Assoc v) -> v
+    | Some _ -> [%message "unexpected type" key config_filename] |> failwith_s
+  in
+  let config = Yojson.Safe.from_file config_filename in
+  let model =
+    match config with
+    | `Assoc assoc ->
+      List.Assoc.find assoc "model" ~equal:String.equal
+      |> to_assoc_exn ~key:"model"
+      |> Map.of_alist_exn (module String)
+    | _ -> [%message "json config is not an object" config_filename] |> failwith_s
+  in
+  let model_type = Map.find model "type" in
+  if Caml.( <> ) model_type (Some (`String "BPE"))
+  then [%message "unexpected model.type" config_filename] |> failwith_s;
+  let vocab =
+    Map.find model "vocab"
+    |> to_assoc_exn ~key:"model.vocab"
+    |> List.map ~f:(function
+         | key, `Int i -> key, i
+         | key, _ ->
+           [%message "unexpected type in vocab" key config_filename] |> failwith_s)
+  in
+  let single_chars =
+    List.filter_map vocab ~f:(fun (key, _) ->
+      if String.length key = 1 then Some key else None)
+    |> Set.of_list (module String)
+  in
+  let encoder =
+    List.filter_map vocab ~f:(fun (key, value) ->
+      let key =
+        match String.chop_prefix key ~prefix:"<0x" with
+        | None -> Some key
+        | Some value ->
+          (match String.chop_suffix value ~suffix:">" with
+           | None -> Some key
+           | Some value ->
+             let value =
+               Int.of_string ("0x" ^ value) |> Char.of_int_exn |> String.of_char
+             in
+             if Set.mem single_chars value then None else Some value)
+      in
+      Option.map key ~f:(fun key -> key, value))
+  in
+  let decoder =
+    List.map encoder ~f:(fun (key, value) ->
+      let key =
+        unicode_chars key
+        |> List.map ~f:(fun unicode_char ->
+             if String.( = ) unicode_char delim then " " else unicode_char)
+        |> String.concat ~sep:""
+      in
+      value, key)
+  in
+  let bpe_ranks =
+    match Map.find model "merges" with
+    | None -> [%message "cannot find model.merges" config_filename] |> failwith_s
+    | Some (`List v) ->
+      List.mapi v ~f:(fun i s ->
+        match s with
+        | `String s ->
+          (match String.split s ~on:' ' with
+           | [ s1; s2 ] -> (s1, s2), i
+           | _ ->
+             [%message "unexpected string in model.merges" s config_filename]
+             |> failwith_s)
+        | other ->
+          let other = Yojson.Safe.to_string other in
+          [%message "unexpected type in model.merges" other config_filename] |> failwith_s)
+      |> Map.of_alist_exn (module String_pair)
+    | Some _ -> [%message "unexpected type model.merges" config_filename] |> failwith_s
+  in
+  { encoder = Map.of_alist_exn (module String) encoder
+  ; decoder = Map.of_alist_exn (module Int) decoder
+  ; bpe_ranks
+  }

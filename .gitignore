@@ -32,5 +32,6 @@ xla_extension*
 
 vocab.bpe
 encoder.json
+llama-tokenizer.json
 *.npz
 *.safetensors
