@@ -7,7 +7,7 @@
    The tokenizer config can be retrieved from:
    https://huggingface.co/hf-internal-testing/llama-tokenizer/blob/main/tokenizer.json
   
-   In order to convert the llama weights to a .npz file, run:
+   In order to convert the llama weights to a .safetensors file, run:
    python examples/convert_llama_checkpoint.py ..../LLaMA/7B/consolidated.00.pth
 *)
 
@@ -139,17 +139,22 @@ end = struct
          if named_var.NamedVar.is_arg then Some i else None)
 
   let load_buffers t ~filename ~device =
-    let npz = Xla.Npy.Npz.open_in filename in
-    Exn.protect
-      ~f:(fun () ->
-        Queue.to_array t.vars
-        |> Array.map ~f:(fun (named_var : NamedVar.t) ->
-             if named_var.is_arg
-             then
-               Literal.create ~ty:named_var.ty ~dims:named_var.dims
-               |> Xla.Buffer.of_host_literal ~device
-             else Xla.Npy.Npz.read_buffer npz named_var.path ~device))
-      ~finally:(fun () -> Xla.Npy.Npz.close_in npz)
+    let only =
+      Queue.to_list t.vars
+      |> List.filter_map ~f:(fun named_var ->
+           if named_var.NamedVar.is_arg then None else Some named_var.path)
+    in
+    let buffers =
+      Xla.Safetensors.read_buffer ~only filename ~device
+      |> Hashtbl.of_alist_exn (module String)
+    in
+    Queue.to_array t.vars
+    |> Array.map ~f:(fun (named_var : NamedVar.t) ->
+         if named_var.is_arg
+         then
+           Literal.create ~ty:named_var.ty ~dims:named_var.dims
+           |> Xla.Buffer.of_host_literal ~device
+         else Hashtbl.find_exn buffers named_var.path)
 end
 
 let time_it str ~f =
@@ -515,8 +520,8 @@ let () =
     time_it "Generated the op" ~f:(fun () -> llama_computation ~config ~b_sz:1)
   in
   let in_buffers =
-    time_it "Load the npz data" ~f:(fun () ->
-      VarBuilder.load_buffers vb ~filename:"llama.npz" ~device)
+    time_it "Load the safetensors data" ~f:(fun () ->
+      VarBuilder.load_buffers vb ~filename:"llama.safetensors" ~device)
   in
   let arg_index =
     match VarBuilder.arg_indexes vb with
