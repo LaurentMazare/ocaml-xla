@@ -4,6 +4,8 @@ XLA (Accelerated Linear Algebra) bindings for OCaml. This is based on the
 for the various operands are documented on the [xla
   website](https://www.tensorflow.org/xla/operation_semantics).
 
+![Main workflow](https://github.com/LaurentMazare/ocaml-xla/workflows/Main%20workflow/badge.svg)
+
 Pre-compiled binaries for the xla library can be downloaded from the
 [elixir-nx/xla repo](https://github.com/elixir-nx/xla/releases/tag/v0.4.4).
 These should be extracted at the root of this repository, resulting
