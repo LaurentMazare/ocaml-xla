@@ -258,7 +258,7 @@ module Op = struct
   let constant literal ~builder = W.Op.constant_literal builder literal |> of_ptr ~builder
 
   let parameter name ~id ~ty ~dims ~builder =
-    let dims = carray_map dims ~ctype:Ctypes.long ~f:Signed.Long.of_int in
+    let dims = carray_map dims ~ctype:Ctypes.int64_t ~f:Int64.of_int in
     let t =
       W.Op.parameter
         builder
