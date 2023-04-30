@@ -105,7 +105,7 @@ module C (F : Cstubs.FOREIGN) = struct
     let parameter =
       foreign
         "parameter"
-        (Builder.t @-> int64_t @-> int @-> int @-> ptr long @-> string @-> returning t)
+        (Builder.t @-> int64_t @-> int @-> int @-> ptr int64_t @-> string @-> returning t)
 
     (* Binary functions. *)
     let add = foreign "op_add" (t @-> t @-> returning t)
