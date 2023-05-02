@@ -185,11 +185,20 @@ module Op : sig
   val reduce : t -> init:t -> f:computation -> dims:int array -> keep_dims:bool -> t
 end
 
+module HloModuleProto : sig
+  type t
+
+  val computation : t -> Op.computation
+  val parse_proto : string -> binary:bool -> t
+  val parse_text : string -> t
+end
+
 module Computation : sig
   type t = Op.computation
 
   val name : t -> string
   val build : root:Op.t -> t
+  val proto : t -> HloModuleProto.t
 end
 
 module PjRtDevice : sig

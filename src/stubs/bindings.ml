@@ -302,12 +302,12 @@ module C (F : Cstubs.FOREIGN) = struct
     let parse_and_return_unverified_module =
       foreign
         "hlo_module_proto_parse_and_return_unverified_module"
-        (ptr char @-> size_t @-> ptr t @-> returning Status.t)
+        (string @-> size_t @-> ptr t @-> returning Status.t)
 
     let parse_proto =
       foreign
         "hlo_module_proto_parse_proto"
-        (ptr char @-> size_t @-> bool @-> ptr t @-> returning Status.t)
+        (string @-> size_t @-> bool @-> ptr t @-> returning Status.t)
 
     let release = foreign "hlo_module_proto_free" (t @-> returning void)
   end

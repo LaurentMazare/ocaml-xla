@@ -588,14 +588,49 @@ module Op = struct
   let builder t = t.builder
 end
 
-module Computation = struct
-  type t = W.Computation.t
+module HloModuleProto = struct
+  type t = W.HloModuleProto.t
 
   let of_ptr ptr =
+    if Ctypes.is_null ptr then failwith "null HloModuleProto pointer";
+    Caml.Gc.finalise W.HloModuleProto.release ptr;
+    ptr
+
+  let computation_of_ptr ptr =
     if Ctypes.is_null ptr then failwith "null Computation pointer";
     Caml.Gc.finalise W.Computation.release ptr;
     ptr
 
+  let computation t = W.HloModuleProto.computation t |> computation_of_ptr
+
+  let parse_text data =
+    let ptr = Ctypes.(allocate_n (ptr W.HloModuleProto.struct_) ~count:1) in
+    let status =
+      W.HloModuleProto.parse_and_return_unverified_module
+        data
+        (String.length data |> Unsigned.Size_t.of_int)
+        ptr
+    in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> of_ptr
+
+  let parse_proto data ~binary =
+    let ptr = Ctypes.(allocate_n (ptr W.HloModuleProto.struct_) ~count:1) in
+    let status =
+      W.HloModuleProto.parse_proto
+        data
+        (String.length data |> Unsigned.Size_t.of_int)
+        binary
+        ptr
+    in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> of_ptr
+end
+
+module Computation = struct
+  type t = W.Computation.t
+
+  let of_ptr = HloModuleProto.computation_of_ptr
   let name = W.Computation.name
 
   let build ~root =
@@ -603,6 +638,8 @@ module Computation = struct
     let status = W.Computation.build root.Op.builder root.ptr ptr in
     Status.ok_exn status;
     Ctypes.( !@ ) ptr |> of_ptr
+
+  let proto t = W.Computation.proto t |> HloModuleProto.of_ptr
 end
 
 module PjRtClient0 = struct

@@ -6,6 +6,13 @@
   (pps ppx_inline_test ppx_expect ppx_sexp_conv ppx_sexp_message)))
 
 (executable
+ (name load_hlo)
+ (modules load_hlo)
+ (libraries xla base sexplib stdio)
+ (preprocess
+  (pps ppx_inline_test ppx_expect ppx_sexp_conv ppx_sexp_message)))
+
+(executable
  (name nanogpt)
  (modules gpt2_tokenizer nanogpt)
  (libraries xla base re yojson sexplib stdio uutf)
