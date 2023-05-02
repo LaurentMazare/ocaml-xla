@@ -108,8 +108,18 @@ module Literal = struct
     Ctypes.( !@ ) ptr |> of_ptr
 
   let ty t = W.Literal.element_type t |> Element_type.of_c_int
-  let size_bytes t = W.Literal.size_bytes t |> Int64.to_int_exn
-  let element_count t = W.Literal.element_count t |> Int64.to_int_exn
+
+  let size_bytes t =
+    let ty = ty t in
+    if Element_type.is_tensor ty
+    then W.Literal.size_bytes t |> Int64.to_int_exn
+    else failwith_s [%message "invalid element type for size_bytes" (ty : Element_type.t)]
+
+  let element_count t =
+    let ty = ty t in
+    if Element_type.is_tensor ty
+    then W.Literal.element_count t |> Int64.to_int_exn
+    else failwith_s [%message "invalid element type for size_bytes" (ty : Element_type.t)]
 
   let shape t =
     let ptr = Ctypes.(allocate_n (ptr W.Shape.struct_) ~count:1) in

@@ -29,3 +29,5 @@ val check_exn : t -> (_, _) Bigarray.kind -> unit
 type ba_kind = P : (_, _) Bigarray.kind -> ba_kind
 
 val ba_kind : t -> ba_kind option
+val is_tensor : t -> bool
+val is_tuple : t -> bool

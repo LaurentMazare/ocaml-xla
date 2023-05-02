@@ -136,3 +136,29 @@ let ba_kind = function
   | C64 -> P Complex32 |> Option.some
   | C128 -> P Complex64 |> Option.some
   | U32 | U64 | Bf16 | Invalid | Pred | Tuple | OpaqueType | Token -> None
+
+let is_tensor = function
+  | S8 | S16 | S32 | S64 | U8 | U16 | U32 | U64 | Bf16 | F16 | F32 | F64 | C64 | C128 ->
+    true
+  | Tuple | OpaqueType | Token | Invalid | Pred -> false
+
+let is_tuple = function
+  | S8
+  | S16
+  | S32
+  | S64
+  | U8
+  | U16
+  | U32
+  | U64
+  | Bf16
+  | F16
+  | F32
+  | F64
+  | C64
+  | C128
+  | OpaqueType
+  | Token
+  | Invalid
+  | Pred -> false
+  | Tuple -> true
