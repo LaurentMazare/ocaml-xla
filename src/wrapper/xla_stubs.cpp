@@ -957,6 +957,20 @@ void literal_copy_from(literal l, const void* src, size_t size_in_bytes) {
   std::memcpy(l->untyped_data(), src, size_in_bytes);
 }
 
+literal literal_make_tuple(const literal* l, size_t n) {
+  Literal out = LiteralUtil::MakeTuple(absl::MakeSpan(l, n));
+  return new Literal(std::move(out));
+}
+
+literal literal_make_tuple_owned(const literal* l, size_t n) {
+  std::vector<xla::Literal> elems;
+  for (size_t i = 0; i < n; ++i) {
+    elems.push_back(std::move(*(l[i])));
+  }
+  Literal out = LiteralUtil::MakeTupleOwned(std::move(elems));
+  return new Literal(std::move(out));
+}
+
 void literal_free(literal l) {
   delete l;
 }
@@ -975,4 +989,47 @@ void xla_computation_free(xla_computation c) {
 
 char *status_error_message(status s) {
   return strdup(s->error_message().c_str());
+}
+
+status hlo_module_proto_parse_and_return_unverified_module(const char* data, size_t len, hlo_module_proto* output) {
+  ASSIGN_OR_RETURN_STATUS(hmp, ParseAndReturnUnverifiedModule(std::string(data, len)));
+  *output = new HloModuleProto(hmp->ToProto());
+  return nullptr;
+}
+
+status hlo_module_proto_parse_proto(const char* d, size_t len, bool binary, hlo_module_proto* output) {
+  std::string data(d, len);
+  HloSnapshot proto;
+  if (binary) {
+      if (!proto.ParseFromString(data) &&
+          !proto.mutable_hlo()->ParseFromString(data) &&
+          !proto.mutable_hlo()->mutable_hlo_module()->ParseFromString(data)) {
+        return new Status(InvalidArgument("Failed to parse input as HLO protobuf binary"));
+      }
+  } else {
+      if (!tsl::protobuf::TextFormat::ParseFromString(data, &proto) &&
+          !tsl::protobuf::TextFormat::ParseFromString(data,
+                                                      proto.mutable_hlo()) &&
+          !tsl::protobuf::TextFormat::ParseFromString(
+              data, proto.mutable_hlo()->mutable_hlo_module())) {
+        return new Status(InvalidArgument("Failed to parse input as HLO protobuf text"));
+      }
+  }
+  ASSIGN_OR_RETURN_STATUS(config,
+                          HloModule::CreateModuleConfigFromProto(proto.hlo().hlo_module(), {}));
+  ASSIGN_OR_RETURN_STATUS(hmp, HloModule::CreateFromProto(proto.hlo().hlo_module(), config));
+  *output = new HloModuleProto(hmp->ToProto());
+  return nullptr;
+}
+
+xla_computation xla_computation_from_hlo_module_proto(const hlo_module_proto p) {
+  return new XlaComputation(*p);
+}
+
+void hlo_module_proto_free(hlo_module_proto p) {
+  delete p;
+}
+
+hlo_module_proto xla_computation_proto(const xla_computation c) {
+  return new HloModuleProto(c->proto());
 }

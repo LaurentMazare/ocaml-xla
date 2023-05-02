@@ -56,6 +56,12 @@ module C (F : Cstubs.FOREIGN) = struct
         "literal_create_from_shape_and_data"
         (int @-> ptr int64_t @-> size_t @-> ptr void @-> size_t @-> returning t)
 
+    let make_tuple =
+      foreign "literal_make_tuple" (ptr t @-> size_t @-> returning t)
+
+    let make_tuple_owned =
+      foreign "literal_make_tuple_owned" (ptr t @-> size_t @-> returning t)
+
     let clone = foreign "literal_clone" (t @-> returning t)
 
     let reshape =
@@ -283,11 +289,38 @@ module C (F : Cstubs.FOREIGN) = struct
       foreign "op_concat_in_dim" (t @-> ptr t @-> size_t @-> int64_t @-> returning t)
   end
 
+  module HloModuleProto = struct
+    type modl
+    type struct_ = modl Ctypes.structure
+    type t = struct_ ptr
+
+    let struct_ : struct_ typ = structure "_hlo_module_proto"
+    let t : t typ = ptr struct_
+
+    let computation =
+      foreign
+        "xla_computation_from_hlo_module_proto"
+        (t @-> returning Computation0.t)
+
+    let parse_and_return_unverified_module =
+      foreign
+        "hlo_module_proto_parse_and_return_unverified_module"
+        (ptr char @-> size_t @-> ptr t @-> returning Status.t)
+
+    let parse_proto =
+      foreign
+        "hlo_module_proto_parse_proto"
+        (ptr char @-> size_t @-> bool @-> ptr t @-> returning Status.t)
+
+    let release = foreign "hlo_module_proto_free" (t @-> returning void)
+   end
+
   module Computation = struct
     include Computation0
 
     let name = foreign "xla_computation_name" (t @-> returning string)
     let build = foreign "build" (Builder.t @-> Op.t @-> ptr t @-> returning Status.t)
+    let proto = foreign "xla_computation_proto" (t @-> returning HloModuleProto.t)
     let release = foreign "xla_computation_free" (t @-> returning void)
   end
 
