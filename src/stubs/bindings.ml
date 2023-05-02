@@ -56,8 +56,7 @@ module C (F : Cstubs.FOREIGN) = struct
         "literal_create_from_shape_and_data"
         (int @-> ptr int64_t @-> size_t @-> ptr void @-> size_t @-> returning t)
 
-    let make_tuple =
-      foreign "literal_make_tuple" (ptr t @-> size_t @-> returning t)
+    let make_tuple = foreign "literal_make_tuple" (ptr t @-> size_t @-> returning t)
 
     let make_tuple_owned =
       foreign "literal_make_tuple_owned" (ptr t @-> size_t @-> returning t)
@@ -298,9 +297,7 @@ module C (F : Cstubs.FOREIGN) = struct
     let t : t typ = ptr struct_
 
     let computation =
-      foreign
-        "xla_computation_from_hlo_module_proto"
-        (t @-> returning Computation0.t)
+      foreign "xla_computation_from_hlo_module_proto" (t @-> returning Computation0.t)
 
     let parse_and_return_unverified_module =
       foreign
@@ -313,7 +310,7 @@ module C (F : Cstubs.FOREIGN) = struct
         (ptr char @-> size_t @-> bool @-> ptr t @-> returning Status.t)
 
     let release = foreign "hlo_module_proto_free" (t @-> returning void)
-   end
+  end
 
   module Computation = struct
     include Computation0
