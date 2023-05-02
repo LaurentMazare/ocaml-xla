@@ -1,3 +1,4 @@
+open! Base
 (*
   This example is a conversion of examples/jax_cpp/main.cc from the jax repo.
   HLO files can be generated via the following command line in the jax repo.
@@ -31,6 +32,12 @@ let () =
   Stdio.printf "Got %d buffers\n%!" (Array.length buffers);
   let literal = Xla.Buffer.to_literal_sync buffers.(0) in
   Stdio.printf "Literal synced\n%!";
+  let literal =
+    match Xla.Literal.decompose_tuple literal with
+    | [| l |] -> l
+    | _tuple -> failwith "unexpected number of tuple elements"
+  in
   Stdio.printf "Size in bytes %d\n%!" (Xla.Literal.size_bytes literal);
   let ba = Xla.Literal.to_bigarray literal ~kind:Bigarray.float32 in
-  Stdio.printf "Result %f\n" (Bigarray.Genarray.get ba [||])
+  let a = Xla.Bigarray_helper.bigarray_to_array2_exn ba in
+  Stdio.print_s [%message "result" (a : float array array)]

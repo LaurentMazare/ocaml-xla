@@ -35,6 +35,9 @@ module Shape = struct
     Caml.Gc.finalise W.Shape.release ptr;
     ptr
 
+  let rank t = W.Shape.dimensions_size t
+  let tuple_shapes_size t = W.Shape.tuple_shapes_size t
+
   let dimensions t =
     let dsize = W.Shape.dimensions_size t in
     Array.init dsize ~f:(W.Shape.dimensions t)
@@ -125,6 +128,16 @@ module Literal = struct
     let ptr = Ctypes.(allocate_n (ptr W.Shape.struct_) ~count:1) in
     W.Literal.shape t ptr;
     Ctypes.( !@ ) ptr |> Shape.of_ptr
+
+  let decompose_tuple t =
+    let shape = shape t in
+    let ty = Shape.ty shape in
+    if not (Element_type.is_tuple ty)
+    then failwith_s [%message "not a tuple" (ty : Element_type.t)];
+    let tuple_shapes_size = Shape.tuple_shapes_size shape in
+    let ptr_ = Ctypes.(allocate_n (ptr W.Literal.struct_) ~count:tuple_shapes_size) in
+    W.Literal.decompose_tuple t ptr_ (Unsigned.Size_t.of_int tuple_shapes_size);
+    Array.init tuple_shapes_size ~f:(fun index -> Ctypes.(!@(ptr_ +@ index)) |> of_ptr)
 
   let check_same_dims_and_kind t ba = Shape.check_same_dims_and_kind (shape t) ba
 

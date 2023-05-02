@@ -4,6 +4,8 @@ open! Base
 module Shape : sig
   type t
 
+  val rank : t -> int
+  val tuple_shapes_size : t -> int
   val dimensions : t -> int array
   val ty : t -> Element_type.t
 end
@@ -27,6 +29,9 @@ module Literal : sig
   val size_bytes : t -> int
   val element_count : t -> int
   val shape : t -> Shape.t
+
+  (* This consumes the input literal t *)
+  val decompose_tuple : t -> t array
 
   (* Bigarray interop. *)
   val of_bigarray_bytes

@@ -24,6 +24,7 @@ module C (F : Cstubs.FOREIGN) = struct
     let dimensions_size = foreign "shape_dimensions_size" (t @-> returning int)
     let element_type = foreign "shape_element_type" (t @-> returning int)
     let dimensions = foreign "shape_dimensions" (t @-> int @-> returning int)
+    let tuple_shapes_size = foreign "shape_tuple_shapes_size" (t @-> returning int)
     let release = foreign "shape_free" (t @-> returning void)
   end
 
@@ -85,6 +86,9 @@ module C (F : Cstubs.FOREIGN) = struct
     let r0_u64 = foreign "create_r0_uint64_t" (uint64_t @-> returning t)
     let r0_f32 = foreign "create_r0_float" (float @-> returning t)
     let r0_f64 = foreign "create_r0_double" (double @-> returning t)
+
+    let decompose_tuple =
+      foreign "literal_decompose_tuple" (t @-> ptr t @-> size_t @-> returning void)
   end
 
   module Computation0 = struct
