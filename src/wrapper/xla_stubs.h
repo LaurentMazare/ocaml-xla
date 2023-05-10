@@ -19,6 +19,7 @@
 #include "tensorflow/compiler/xla/pjrt/tfrt_cpu_pjrt_client.h"
 #include "tensorflow/compiler/xla/pjrt/tpu_client.h"
 #include "tensorflow/compiler/xla/service/hlo_parser.h"
+#include "tensorflow/compiler/xla/shape_util.h"
 #include "tensorflow/compiler/xla/statusor.h"
 #pragma GCC diagnostic pop
 using namespace xla;
@@ -88,6 +89,7 @@ void xla_builder_free(xla_builder);
 xla_op constant_literal(const xla_builder, const literal);
 xla_op parameter(const xla_builder, int64_t, int, int, const int64_t *,
                  const char *);
+xla_op parameter_s(const xla_builder, int64_t, const shape, const char *);
 xla_op infeed(const xla_builder, int, int, const int64_t *, const char *);
 void outfeed(const xla_op, int, int, const int64_t *, const char *);
 
@@ -188,6 +190,8 @@ shape shape_tuple_shapes(const shape, int);
 int shape_element_type(const shape);
 int64_t shape_dimensions(const shape, int);
 void shape_free(shape);
+shape make_shape_array(int, size_t, const int64_t *);
+shape make_shape_tuple(size_t, const shape *);
 
 status get_shape(const xla_builder, const xla_op, shape *);
 status get_element_type(const xla_builder, const xla_op, int *);
