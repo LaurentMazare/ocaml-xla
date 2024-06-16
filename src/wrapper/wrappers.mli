@@ -93,6 +93,8 @@ module Op : sig
     -> builder:Builder.t
     -> t
 
+  val tuple : t list -> builder:Builder.t -> t
+
   (* Unary. *)
   val not_ : t -> t
   val abs : t -> t

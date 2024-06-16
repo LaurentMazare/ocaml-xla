@@ -435,6 +435,15 @@ module Op = struct
     keep_alive other_ptrs;
     t
 
+  let tuple ts ~builder =
+    let ptrs = List.map ts ~f:(fun t -> t.ptr) |> CArray.of_list W.Op.t in
+    let t =
+      W.Op.tuple builder (CArray.start ptrs) (CArray.length ptrs |> Unsigned.Size_t.of_int)
+      |> of_ptr ~builder
+    in
+    keep_alive ptrs;
+    t
+
   let dot_general t1 t2 ~lhs_c ~rhs_c ~lhs_b ~rhs_b =
     let lhs_c = carray_i64 lhs_c in
     let rhs_c = carray_i64 rhs_c in
