@@ -109,7 +109,7 @@ end = struct
             (ty : Element_type.t)
             (read_ty : Element_type.t)]
         |> failwith_s;
-      if Caml.( <> ) dims read_dims
+      if Stdlib.( <> ) dims read_dims
       then
         [%message
           "dims mismatch" (name : string) (dims : int array) (read_dims : int array)]

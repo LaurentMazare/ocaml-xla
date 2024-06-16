@@ -2,7 +2,7 @@ open! Base
 module W = Bindings.C (Xla_generated)
 
 (* Taken from [Core_kernel.Gc]. *)
-let zero = Sys.opaque_identity (Caml.int_of_string "0")
+let zero = Sys.opaque_identity (Stdlib.int_of_string "0")
 
 (* The compiler won't optimize int_of_string away so it won't
    perform constant folding below. *)

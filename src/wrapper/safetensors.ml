@@ -18,7 +18,7 @@ let read ?only filename ~f =
   let only = Option.map only ~f:(Hash_set.of_list (module String)) in
   Stdio.In_channel.with_file filename ~binary:true ~f:(fun in_c ->
     let header_size =
-      match Caml.really_input_string in_c 8 with
+      match Stdlib.really_input_string in_c 8 with
       | header_size -> header_size
       | exception _ -> read_error "unexpected eof while reading header size"
     in
@@ -28,7 +28,7 @@ let read ?only filename ~f =
       |> Base.Int_conversions.int64_to_int_exn
     in
     let header =
-      match Caml.really_input_string in_c header_size with
+      match Stdlib.really_input_string in_c header_size with
       | header -> header
       | exception _ -> read_error "unexpected eof while reading header len:%d" header_size
     in
