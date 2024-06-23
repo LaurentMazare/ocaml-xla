@@ -11,19 +11,12 @@ homepage: "https://github.com/LaurentMazare/ocaml-xla"
 doc: "https://url/to/documentation"
 bug-reports: "https://github.com/LaurentMazare/ocaml-xla/issues"
 depends: [
-  "base" {>= "v0.15.0" & < "v0.16"}
-  "stdio" {>= "v0.15.0" & < "v0.16"}
-  "int_repr" {>= "v0.15.0" & < "v0.16"}
+  "base"
+  "stdio"
   "camlzip"
-  "ctypes" {>= "0.5"}
+  "ctypes"
   "ctypes-foreign"
   "ocaml"
-  "ppx_expect" {>= "v0.15.0" & < "v0.16"}
-  "ppx_sexp_conv" {>= "v0.15.0" & < "v0.16"}
-  "ppx_sexp_message" {>= "v0.15.0" & < "v0.16"}
-  "sexplib" {>= "v0.15.0" & < "v0.16"}
-  "yojson" {>= "2.0.0"}
-  "uutf" {>= "1.0.0"}
   "dune" {>= "3.1"}
   "odoc" {with-doc}
 ]

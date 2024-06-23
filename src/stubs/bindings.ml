@@ -290,6 +290,8 @@ module C (F : Cstubs.FOREIGN) = struct
 
     let concat_in_dim =
       foreign "op_concat_in_dim" (t @-> ptr t @-> size_t @-> int64_t @-> returning t)
+
+    let tuple = foreign "op_tuple" (Builder.t @-> ptr t @-> size_t @-> returning t)
   end
 
   module HloModuleProto = struct

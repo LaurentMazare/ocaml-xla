@@ -1,12 +1,12 @@
 (* An implementation of LLaMA https://github.com/facebookresearch/llama
    This only contains the inference part as the xla crate does not support backpropagation.
-  
+
    This is based on nanoGPT in a similar way to:
    https://github.com/Lightning-AI/lit-llama/blob/main/lit_llama/model.py
-  
+
    The tokenizer config can be retrieved via:
-    wget https://huggingface.co/hf-internal-testing/llama-tokenizer/raw/main/tokenizer.json -O llama-tokenizer.json
-  
+   wget https://huggingface.co/hf-internal-testing/llama-tokenizer/raw/main/tokenizer.json -O llama-tokenizer.json
+
    In order to convert the llama weights to a .safetensors file, run:
    python examples/convert_llama_checkpoint.py ..../LLaMA/7B/consolidated.00.pth
 *)
@@ -137,13 +137,13 @@ end = struct
   let arg_indexes t =
     Queue.to_list t.vars
     |> List.filter_mapi ~f:(fun i named_var ->
-         if named_var.NamedVar.is_arg then Some i else None)
+      if named_var.NamedVar.is_arg then Some i else None)
 
   let load_buffers t ~filename ~device =
     let only =
       Queue.to_list t.vars
       |> List.filter_map ~f:(fun named_var ->
-           if named_var.NamedVar.is_arg then None else Some named_var.path)
+        if named_var.NamedVar.is_arg then None else Some named_var.path)
     in
     let buffers =
       Xla.Safetensors.read_buffer ~only filename ~device
@@ -151,11 +151,11 @@ end = struct
     in
     Queue.to_array t.vars
     |> Array.map ~f:(fun (named_var : NamedVar.t) ->
-         if named_var.is_arg
-         then
-           Literal.create ~ty:named_var.ty ~dims:named_var.dims
-           |> Xla.Buffer.of_host_literal ~device
-         else Hashtbl.find_exn buffers named_var.path)
+      if named_var.is_arg
+      then
+        Literal.create ~ty:named_var.ty ~dims:named_var.dims
+        |> Xla.Buffer.of_host_literal ~device
+      else Hashtbl.find_exn buffers named_var.path)
 end
 
 let time_it str ~f =
@@ -510,7 +510,7 @@ let () =
     time_it "Load the safetensors data" ~f:(fun () ->
       VarBuilder.load_buffers vb ~filename:"llama.safetensors" ~device)
   in
-  Caml.Gc.full_major ();
+  Stdlib.Gc.full_major ();
   let arg_index =
     match VarBuilder.arg_indexes vb with
     | [ index ] -> index

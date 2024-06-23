@@ -32,7 +32,7 @@ module Shape = struct
   (* This takes ownership of the pointer. *)
   let of_ptr ptr =
     if Ctypes.is_null ptr then failwith "null Shape pointer";
-    Caml.Gc.finalise W.Shape.release ptr;
+    Stdlib.Gc.finalise W.Shape.release ptr;
     ptr
 
   let rank t = W.Shape.dimensions_size t
@@ -62,7 +62,7 @@ module Builder = struct
   let create ~name =
     let ptr = W.Builder.create name in
     if Ctypes.is_null ptr then failwith "null Builder pointer";
-    Caml.Gc.finalise W.Builder.release ptr;
+    Stdlib.Gc.finalise W.Builder.release ptr;
     ptr
 
   let first_error t = W.Builder.first_error t |> Status.check_and_release
@@ -74,7 +74,7 @@ module Literal = struct
 
   let of_ptr ptr =
     if Ctypes.is_null ptr then failwith "null Literal pointer";
-    Caml.Gc.finalise W.Literal.release ptr;
+    Stdlib.Gc.finalise W.Literal.release ptr;
     ptr
 
   let create ~ty ~dims =
@@ -238,7 +238,7 @@ module Op = struct
 
   let of_ptr ptr ~builder =
     if Ctypes.is_null ptr then failwith "null Op pointer";
-    Caml.Gc.finalise W.Op.release ptr;
+    Stdlib.Gc.finalise W.Op.release ptr;
     Builder.current_status builder |> Or_error.ok_exn;
     { ptr; builder }
 
@@ -435,6 +435,15 @@ module Op = struct
     keep_alive other_ptrs;
     t
 
+  let tuple ts ~builder =
+    let ptrs = List.map ts ~f:(fun t -> t.ptr) |> CArray.of_list W.Op.t in
+    let t =
+      W.Op.tuple builder (CArray.start ptrs) (CArray.length ptrs |> Unsigned.Size_t.of_int)
+      |> of_ptr ~builder
+    in
+    keep_alive ptrs;
+    t
+
   let dot_general t1 t2 ~lhs_c ~rhs_c ~lhs_b ~rhs_b =
     let lhs_c = carray_i64 lhs_c in
     let rhs_c = carray_i64 rhs_c in
@@ -517,7 +526,7 @@ module Op = struct
       let dims =
         dims t
         |> Array.mapi ~f:(fun i d ->
-             if Array.mem reduce_dims i ~equal:Int.equal then 1 else d)
+          if Array.mem reduce_dims i ~equal:Int.equal then 1 else d)
       in
       reshape res ~dims)
     else res
@@ -616,12 +625,12 @@ module HloModuleProto = struct
 
   let of_ptr ptr =
     if Ctypes.is_null ptr then failwith "null HloModuleProto pointer";
-    Caml.Gc.finalise W.HloModuleProto.release ptr;
+    Stdlib.Gc.finalise W.HloModuleProto.release ptr;
     ptr
 
   let computation_of_ptr ptr =
     if Ctypes.is_null ptr then failwith "null Computation pointer";
-    Caml.Gc.finalise W.Computation.release ptr;
+    Stdlib.Gc.finalise W.Computation.release ptr;
     ptr
 
   let computation t = W.HloModuleProto.computation t |> computation_of_ptr
@@ -670,7 +679,7 @@ module PjRtClient0 = struct
 
   let of_ptr ptr =
     if Ctypes.is_null ptr then failwith "null PjRtlient pointer";
-    Caml.Gc.finalise W.PjRtClient.release ptr;
+    Stdlib.Gc.finalise W.PjRtClient.release ptr;
     ptr
 end
 
@@ -741,7 +750,7 @@ module PjRtBuffer = struct
 
   let of_ptr ptr ~client =
     if Ctypes.is_null ptr then failwith "null PjRtBuffer pointer";
-    Caml.Gc.finalise W.PjRtBuffer.release ptr;
+    Stdlib.Gc.finalise W.PjRtBuffer.release ptr;
     { ptr; client }
 
   let of_host_literal literal ~device =
@@ -844,7 +853,7 @@ module PjRtLoadedExecutable = struct
 
   let of_ptr ptr ~client =
     if Ctypes.is_null ptr then failwith "null PjRtLoadedExecutable pointer";
-    Caml.Gc.finalise W.PjRtLoadedExecutable.release ptr;
+    Stdlib.Gc.finalise W.PjRtLoadedExecutable.release ptr;
     { ptr; client }
 
   let compile client computation =

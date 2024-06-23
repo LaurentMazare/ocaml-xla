@@ -98,15 +98,14 @@ let create ~config_filename =
     | _ -> [%message "json config is not an object" config_filename] |> failwith_s
   in
   let model_type = Map.find model "type" in
-  if Caml.( <> ) model_type (Some (`String "BPE"))
+  if Stdlib.( <> ) model_type (Some (`String "BPE"))
   then [%message "unexpected model.type" config_filename] |> failwith_s;
   let vocab =
     Map.find model "vocab"
     |> to_assoc_exn ~key:"model.vocab"
     |> List.map ~f:(function
-         | key, `Int i -> key, i
-         | key, _ ->
-           [%message "unexpected type in vocab" key config_filename] |> failwith_s)
+      | key, `Int i -> key, i
+      | key, _ -> [%message "unexpected type in vocab" key config_filename] |> failwith_s)
   in
   let single_chars =
     List.filter_map vocab ~f:(fun (key, _) ->
@@ -134,7 +133,7 @@ let create ~config_filename =
       let key =
         unicode_chars key
         |> List.map ~f:(fun unicode_char ->
-             if String.( = ) unicode_char delim then " " else unicode_char)
+          if String.( = ) unicode_char delim then " " else unicode_char)
         |> String.concat ~sep:""
       in
       value, key)

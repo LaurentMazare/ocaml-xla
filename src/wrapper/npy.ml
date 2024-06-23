@@ -167,13 +167,13 @@ module Header = struct
     let header_fields =
       trim header ~on:[ '{'; ' '; '}'; '\n' ]
       |> split ~on:','
-      |> List.map ~f:Caml.String.trim
+      |> List.map ~f:Stdlib.String.trim
       |> List.filter ~f:(fun s -> String.length s > 0)
       |> List.map ~f:(fun header_field ->
-           match split header_field ~on:':' with
-           | [ name; value ] ->
-             trim name ~on:[ '\''; ' ' ], trim value ~on:[ '\''; ' '; '('; ')' ]
-           | _ -> read_error "unable to parse field %s" header_field)
+        match split header_field ~on:':' with
+        | [ name; value ] ->
+          trim name ~on:[ '\''; ' ' ], trim value ~on:[ '\''; ' '; '('; ')' ]
+        | _ -> read_error "unable to parse field %s" header_field)
     in
     let find_field field =
       match List.Assoc.find header_fields field ~equal:String.equal with
@@ -212,7 +212,7 @@ module Header = struct
     let shape =
       find_field "shape"
       |> split ~on:','
-      |> List.map ~f:Caml.String.trim
+      |> List.map ~f:Stdlib.String.trim
       |> List.filter ~f:(fun s -> String.length s > 0)
       |> List.map ~f:Int.of_string
       |> Array.of_list
@@ -255,7 +255,7 @@ let read_mmap filename ~shared =
   let (Header.P kind) = header.kind in
   let build layout =
     let array = map_file file_descr ~pos kind layout shared header.shape in
-    Caml.Gc.finalise (fun _ -> Unix.close file_descr) array;
+    Stdlib.Gc.finalise (fun _ -> Unix.close file_descr) array;
     P array
   in
   if header.fortran_order then build Fortran_layout else build C_layout
@@ -290,16 +290,16 @@ module Npz = struct
   let entries t =
     Zip.entries t
     |> List.map ~f:(fun entry ->
-         let filename = entry.Zip.filename in
-         if String.length filename < String.length npy_suffix
-         then filename
-         else (
-           let start_pos = String.length filename - String.length npy_suffix in
-           if String.( = )
-                (String.sub filename ~pos:start_pos ~len:(String.length npy_suffix))
-                npy_suffix
-           then String.sub filename ~pos:0 ~len:start_pos
-           else filename))
+      let filename = entry.Zip.filename in
+      if String.length filename < String.length npy_suffix
+      then filename
+      else (
+        let start_pos = String.length filename - String.length npy_suffix in
+        if String.( = )
+             (String.sub filename ~pos:start_pos ~len:(String.length npy_suffix))
+             npy_suffix
+        then String.sub filename ~pos:0 ~len:start_pos
+        else filename))
 
   let close_in = Zip.close_in
 
@@ -307,14 +307,14 @@ module Npz = struct
     let array_name = maybe_add_suffix array_name ~suffix in
     let entry =
       try Zip.find_entry t array_name with
-      | Caml.Not_found -> raise (Invalid_argument ("unable to find " ^ array_name))
+      | Stdlib.Not_found -> raise (Invalid_argument ("unable to find " ^ array_name))
     in
-    let tmp_file = Caml.Filename.temp_file "ocaml-npz" ".tmp" in
+    let tmp_file = Stdlib.Filename.temp_file "oStdlib-npz" ".tmp" in
     Zip.copy_entry_to_file t entry tmp_file;
     let data =
       Exn.protect
         ~f:(fun () -> read_fn tmp_file)
-        ~finally:(fun () -> Caml.Sys.remove tmp_file)
+        ~finally:(fun () -> Stdlib.Sys.remove tmp_file)
     in
     data
 
@@ -340,8 +340,8 @@ module Npz = struct
 
   let write ?suffix t array_name array =
     let array_name = maybe_add_suffix array_name ~suffix in
-    let tmp_file = Caml.Filename.temp_file "ocaml-npz" ".tmp" in
+    let tmp_file = Stdlib.Filename.temp_file "oStdlib-npz" ".tmp" in
     write array tmp_file;
     Zip.copy_file_to_entry tmp_file t array_name;
-    Caml.Sys.remove tmp_file
+    Stdlib.Sys.remove tmp_file
 end
