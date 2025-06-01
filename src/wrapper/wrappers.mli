@@ -196,6 +196,7 @@ module HloModuleProto : sig
   type t
 
   val computation : t -> Op.computation
+  val to_string : t -> string
   val parse_proto : string -> binary:bool -> t
   val parse_text : string -> t
 end

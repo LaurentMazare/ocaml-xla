@@ -30,31 +30,79 @@ let eval ~args ~f =
   let literal = Buffer.to_literal_sync buffers.(0).(0) in
   let ba = Literal.to_bigarray literal ~kind:Bigarray.float32 in
   let dims = Bigarray.Genarray.dims ba in
-  Stdio.print_s [%message (dims : int array) (ba : bigarray)]
+  Stdio.print_s
+    [%message
+      (dims : int array)
+        (ba : bigarray)
+        ~hmp:(Hlo_module_proto.to_string (Computation.proto computation))]
 
 let%expect_test _ =
   set_log_level ();
   eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.add (r0_f32 39.) (r0_f32 3.));
-  [%expect {|
-        ((dims ()) (ba 42))
-  |}];
+  [%expect
+    {|
+    ((dims ()) (ba 42)
+     (hmp
+       "HloModule mybuilder.4, entry_computation_layout={()->f32[]}\
+      \n\
+      \nENTRY %mybuilder.4 () -> f32[] {\
+      \n  %constant.2 = f32[] constant(39)\
+      \n  %constant.1 = f32[] constant(3)\
+      \n  ROOT %add.3 = f32[] add(f32[] %constant.2, f32[] %constant.1)\
+      \n}\
+      \n\
+      \n"))
+    |}];
   eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.sub (r0_f32 39.) (r0_f32 3.));
-  [%expect {|
-        ((dims ()) (ba 36))
-  |}];
+  [%expect
+    {|
+    ((dims ()) (ba 36)
+     (hmp
+       "HloModule mybuilder.4, entry_computation_layout={()->f32[]}\
+      \n\
+      \nENTRY %mybuilder.4 () -> f32[] {\
+      \n  %constant.2 = f32[] constant(39)\
+      \n  %constant.1 = f32[] constant(3)\
+      \n  ROOT %subtract.3 = f32[] subtract(f32[] %constant.2, f32[] %constant.1)\
+      \n}\
+      \n\
+      \n"))
+    |}];
   eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.mul (r0_f32 39.) (r0_f32 3.));
-  [%expect {|
-        ((dims ()) (ba 117))
-  |}];
+  [%expect
+    {|
+    ((dims ()) (ba 117)
+     (hmp
+       "HloModule mybuilder.4, entry_computation_layout={()->f32[]}\
+      \n\
+      \nENTRY %mybuilder.4 () -> f32[] {\
+      \n  %constant.2 = f32[] constant(39)\
+      \n  %constant.1 = f32[] constant(3)\
+      \n  ROOT %multiply.3 = f32[] multiply(f32[] %constant.2, f32[] %constant.1)\
+      \n}\
+      \n\
+      \n"))
+    |}];
   eval ~args:[||] ~f:(fun ~builder ->
     let r0_f32 = Xla.Op.r0_f32 ~builder in
     Xla.Op.div (r0_f32 39.) (r0_f32 3.));
-  [%expect {|
-        ((dims ()) (ba 13))
-      |}]
+  [%expect
+    {|
+    ((dims ()) (ba 13)
+     (hmp
+       "HloModule mybuilder.4, entry_computation_layout={()->f32[]}\
+      \n\
+      \nENTRY %mybuilder.4 () -> f32[] {\
+      \n  %constant.2 = f32[] constant(39)\
+      \n  %constant.1 = f32[] constant(3)\
+      \n  ROOT %divide.3 = f32[] divide(f32[] %constant.2, f32[] %constant.1)\
+      \n}\
+      \n\
+      \n"))
+    |}]

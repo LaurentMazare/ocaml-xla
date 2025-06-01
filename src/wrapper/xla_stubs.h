@@ -225,6 +225,8 @@ literal literal_make_tuple(const literal *, size_t);
 literal literal_make_tuple_owned(const literal *, size_t);
 void literal_free(literal);
 
+status hlo_module_proto_to_string(const hlo_module_proto, char **);
+
 status hlo_module_proto_parse_and_return_unverified_module(const char *, size_t,
                                                            hlo_module_proto *);
 status hlo_module_proto_parse_proto(const char *, size_t, bool,

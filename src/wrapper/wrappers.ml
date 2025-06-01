@@ -187,9 +187,9 @@ module Literal = struct
     t
 
   let of_bigarray_bytes
-    ~(src : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
-    ~ty
-    ~dims
+        ~(src : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
+        ~ty
+        ~dims
     =
     let size_in_bytes = Bigarray.Genarray.size_in_bytes src in
     let expected_size_in_bytes =
@@ -470,13 +470,13 @@ module Op = struct
     t
 
   let gather
-    t
-    ~start_indices
-    ~offset_dims
-    ~collapsed_slice_dims
-    ~start_index_map
-    ~set_index_vector_dim
-    ~slice_sizes
+        t
+        ~start_indices
+        ~offset_dims
+        ~collapsed_slice_dims
+        ~start_index_map
+        ~set_index_vector_dim
+        ~slice_sizes
     =
     let offset_dims = carray_i64 offset_dims in
     let collapsed_slice_dims = carray_i64 collapsed_slice_dims in
@@ -634,6 +634,12 @@ module HloModuleProto = struct
     ptr
 
   let computation t = W.HloModuleProto.computation t |> computation_of_ptr
+
+  let to_string t =
+    let ptr = Ctypes.(allocate (ptr char) (from_voidp char null)) in
+    let status = W.HloModuleProto.to_string t ptr in
+    Status.ok_exn status;
+    Ctypes.( !@ ) ptr |> Ctypes_std_views.string_of_char_ptr
 
   let parse_text data =
     let ptr = Ctypes.(allocate_n (ptr W.HloModuleProto.struct_) ~count:1) in
@@ -807,10 +813,10 @@ module PjRtBuffer = struct
     Ctypes.( !@ ) ptr |> of_ptr ~client:device.client
 
   let of_bigarray_bytes
-    ~(src : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
-    ~ty
-    ~dims
-    ~device
+        ~(src : (int, Bigarray.int8_unsigned_elt, Bigarray.c_layout) Bigarray.Genarray.t)
+        ~ty
+        ~dims
+        ~device
     =
     let size_in_bytes = Bigarray.Genarray.size_in_bytes src in
     let expected_size_in_bytes =
