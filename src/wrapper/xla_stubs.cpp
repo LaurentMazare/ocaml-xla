@@ -1033,6 +1033,15 @@ char *status_error_message(status s) {
   return strdup(s->error_message().c_str());
 }
 
+status hlo_module_proto_to_string(hlo_module_proto p, char **output) {
+  ASSIGN_OR_RETURN_STATUS(config, HloModule::CreateModuleConfigFromProto(
+                                  *p, {}));
+  ASSIGN_OR_RETURN_STATUS(
+      hmp, HloModule::CreateFromProto(*p, config));
+  *output = strdup(hmp->ToString().c_str());
+  return nullptr;
+}
+
 status hlo_module_proto_parse_and_return_unverified_module(
     const char *data, size_t len, hlo_module_proto *output) {
   ASSIGN_OR_RETURN_STATUS(

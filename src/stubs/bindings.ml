@@ -305,6 +305,9 @@ module C (F : Cstubs.FOREIGN) = struct
     let computation =
       foreign "xla_computation_from_hlo_module_proto" (t @-> returning Computation0.t)
 
+    let to_string =
+      foreign "hlo_module_proto_to_string" (t @-> ptr (ptr char) @-> returning Status.t)
+
     let parse_and_return_unverified_module =
       foreign
         "hlo_module_proto_parse_and_return_unverified_module"
